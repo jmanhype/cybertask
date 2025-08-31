@@ -57,6 +57,9 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
+# Create logs directory with proper ownership (in case needed)
+RUN mkdir -p /app/logs && chown -R nodejs:nodejs /app/logs
+
 # Copy built application and production dependencies
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules

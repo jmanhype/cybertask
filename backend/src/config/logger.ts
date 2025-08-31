@@ -55,30 +55,35 @@ const fileFormat = winston.format.combine(
 );
 
 // Define transports
-const transports = [
+const transports: winston.transport[] = [
   // Console transport
   new winston.transports.Console({
     format: format,
     level: process.env.LOG_LEVEL || 'debug',
   }),
-  
-  // Error log file
-  new winston.transports.File({
-    filename: path.join(process.cwd(), 'logs', 'error.log'),
-    level: 'error',
-    format: fileFormat,
-    maxsize: 5242880, // 5MB
-    maxFiles: 5,
-  }),
-  
-  // Combined log file
-  new winston.transports.File({
-    filename: path.join(process.cwd(), 'logs', 'combined.log'),
-    format: fileFormat,
-    maxsize: 5242880, // 5MB
-    maxFiles: 5,
-  }),
 ];
+
+// Only add file transports in development
+if (process.env.NODE_ENV !== 'production') {
+  transports.push(
+    // Error log file
+    new winston.transports.File({
+      filename: path.join(process.cwd(), 'logs', 'error.log'),
+      level: 'error',
+      format: fileFormat,
+      maxsize: 5242880, // 5MB
+      maxFiles: 5,
+    }),
+    
+    // Combined log file
+    new winston.transports.File({
+      filename: path.join(process.cwd(), 'logs', 'combined.log'),
+      format: fileFormat,
+      maxsize: 5242880, // 5MB
+      maxFiles: 5,
+    })
+  );
+}
 
 // Create logger instance
 export const logger = winston.createLogger({
@@ -108,11 +113,13 @@ export const httpLogger = winston.createLogger({
         })
       ),
     }),
-    new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'http.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
+    ...(process.env.NODE_ENV !== 'production' ? [
+      new winston.transports.File({
+        filename: path.join(process.cwd(), 'logs', 'http.log'),
+        maxsize: 5242880, // 5MB
+        maxFiles: 5,
+      })
+    ] : []),
   ],
 });
 
@@ -139,11 +146,13 @@ export const dbLogger = winston.createLogger({
       ),
       level: process.env.NODE_ENV === 'development' ? 'debug' : 'error',
     }),
-    new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'database.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 3,
-    }),
+    ...(process.env.NODE_ENV !== 'production' ? [
+      new winston.transports.File({
+        filename: path.join(process.cwd(), 'logs', 'database.log'),
+        maxsize: 5242880, // 5MB
+        maxFiles: 3,
+      })
+    ] : []),
   ],
 });
 
@@ -169,11 +178,13 @@ export const securityLogger = winston.createLogger({
         })
       ),
     }),
-    new winston.transports.File({
-      filename: path.join(process.cwd(), 'logs', 'security.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 10,
-    }),
+    ...(process.env.NODE_ENV !== 'production' ? [
+      new winston.transports.File({
+        filename: path.join(process.cwd(), 'logs', 'security.log'),
+        maxsize: 5242880, // 5MB
+        maxFiles: 10,
+      })
+    ] : []),
   ],
 });
 
@@ -182,11 +193,13 @@ logger.on('error', (error) => {
   console.error('Logger error:', error);
 });
 
-// Create logs directory if it doesn't exist
+// Create logs directory if it doesn't exist (only in development)
 import fs from 'fs';
-const logsDir = path.join(process.cwd(), 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
+if (process.env.NODE_ENV !== 'production') {
+  const logsDir = path.join(process.cwd(), 'logs');
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+  }
 }
 
 // Helper functions
