@@ -69,7 +69,6 @@ COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
 
 # Copy additional config files
 COPY --chown=nodejs:nodejs tsconfig.json ./
-COPY --chown=nodejs:nodejs jest.config.js ./
 
 # Set environment variables
 ENV NODE_ENV=production
