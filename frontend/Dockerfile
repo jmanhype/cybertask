@@ -1,6 +1,11 @@
 # Multi-stage build for CyberTask Frontend
 FROM node:18-alpine AS base
 
+# Add labels for GitHub Container Registry
+LABEL org.opencontainers.image.source="https://github.com/jmanhype/cybertask"
+LABEL org.opencontainers.image.description="CyberTask Frontend - Task Management Platform UI"
+LABEL org.opencontainers.image.licenses="MIT"
+
 # Install system dependencies
 RUN apk add --no-cache \
     libc6-compat \

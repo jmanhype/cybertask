@@ -150,14 +150,50 @@ npm run preview    # Preview production build
 - ✅ Input validation and SQL injection prevention
 - ✅ Regular security audits via GitHub Actions
 
+### Docker Images
+
+Official Docker images are available on GitHub Container Registry:
+
+- **Backend**: `ghcr.io/jmanhype/cybertask-backend:latest`
+- **Frontend**: `ghcr.io/jmanhype/cybertask-frontend:latest`
+
+#### Pull Images
+```bash
+# Pull pre-built images
+docker pull ghcr.io/jmanhype/cybertask-backend:latest
+docker pull ghcr.io/jmanhype/cybertask-frontend:latest
+```
+
+#### Run with Docker
+```bash
+# Run backend
+docker run -d \
+  --name cybertask-backend \
+  -p 3001:3000 \
+  -e DATABASE_URL="postgresql://user:password@host.docker.internal:5432/cybertask" \
+  -e JWT_SECRET="your-secret-key" \
+  -e JWT_REFRESH_SECRET="your-refresh-secret" \
+  -e NODE_ENV="production" \
+  ghcr.io/jmanhype/cybertask-backend:latest
+
+# Run frontend
+docker run -d \
+  --name cybertask-frontend \
+  -p 8080:8080 \
+  ghcr.io/jmanhype/cybertask-frontend:latest
+```
+
 ### Local Development
 
-#### Using Docker
+#### Using Docker Compose
 ```bash
 # Build and run with Docker Compose
 docker-compose up -d
+```
 
-# Or build individually
+#### Build from Source
+```bash
+# Build images locally
 docker build -t cybertask-backend ./backend
 docker build -t cybertask-frontend ./frontend
 ```
