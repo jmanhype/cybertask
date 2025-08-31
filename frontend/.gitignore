@@ -46,3 +46,4 @@ coverage/
 
 # Vite
 .vite/
+.vercel
