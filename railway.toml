@@ -1,0 +1,26 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "./backend/Dockerfile"
+
+[deploy]
+startCommand = "node dist/server.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "cybertask-backend"
+type = "web"
+
+[[services.ports]]
+port = 3000
+protocol = "TCP"
+
+[environments.production]
+DATABASE_URL = "${DATABASE_URL}"
+JWT_SECRET = "${JWT_SECRET}"
+JWT_REFRESH_SECRET = "${JWT_REFRESH_SECRET}"
+NODE_ENV = "production"
+PORT = "3000"
+CORS_ORIGIN = "https://frontend-2livxtzlf-straughterguthrie-gmailcoms-projects.vercel.app"
