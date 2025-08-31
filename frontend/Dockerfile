@@ -5,6 +5,10 @@ FROM node:18-alpine AS base
 LABEL org.opencontainers.image.source="https://github.com/jmanhype/cybertask"
 LABEL org.opencontainers.image.description="CyberTask Frontend - Task Management Platform UI"
 LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.url="https://github.com/jmanhype/cybertask"
+LABEL org.opencontainers.image.documentation="https://github.com/jmanhype/cybertask#readme"
+LABEL org.opencontainers.image.vendor="jmanhype"
+LABEL org.opencontainers.image.title="CyberTask Frontend"
 
 # Install system dependencies
 RUN apk add --no-cache \

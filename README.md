@@ -2,16 +2,6 @@
 
 > Built autonomously by the Cybernetic Orchestration Platform as a demonstration of AI-driven full-stack development
 
-## 🌟 **NOW LIVE IN PRODUCTION!** 🌟
-
-- **🌐 Frontend**: [https://cybertask.vercel.app](https://cybertask.vercel.app)
-- **🔗 API**: [https://cybertask-backend.railway.app/api](https://cybertask-backend.railway.app/api)
-- **📚 Documentation**: [API Docs](https://cybertask-backend.railway.app/api-docs)
-
-### Demo Account
-- **Email**: `demo@cybertask.com`
-- **Password**: `Demo123!`
-
 ## 🚀 Overview
 
 CyberTask is a modern task management application with AI-powered features, built entirely by AI agents using the Cybernetic platform. It showcases real-time collaboration, intelligent task suggestions, and comprehensive project management capabilities.
@@ -129,18 +119,17 @@ npm run typecheck  # Type checking
 npm run preview    # Preview production build
 ```
 
-## 🚀 Production Deployment
+## 🚀 Deployment Options
 
-### Live Environment
-- **Frontend**: Deployed on Vercel with global CDN
-- **Backend**: Deployed on Railway with auto-scaling
-- **Database**: Railway PostgreSQL with automated backups
-- **Monitoring**: Built-in performance dashboards
+### Docker Deployment
+- **Backend**: Container with Node.js, Express, PostgreSQL support
+- **Frontend**: Nginx-optimized container for React app
+- **Multi-stage builds**: Optimized for production
+- **Health checks**: Built-in monitoring endpoints
 
 ### Performance Metrics
-- **API Response Time**: <150ms average
-- **Page Load Time**: <2s first visit
-- **Uptime**: 99.9% SLA
+- **Build time**: < 2 minutes
+- **Container size**: < 200MB (optimized)
 - **Test Coverage**: 90%+
 
 ### Security Features
