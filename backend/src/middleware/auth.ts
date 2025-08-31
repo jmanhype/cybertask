@@ -68,8 +68,8 @@ export const authMiddleware = async (
         return;
       }
       
-      // Attach user to request
-      req.user = user;
+      // Attach user to request (type assertion to full User model)
+      req.user = user as any;
       req.userId = user.id;
       
       next();
@@ -210,8 +210,8 @@ export const generateAccessToken = (userId: string, email: string): string => {
       expiresIn: jwtConfig.expiresIn,
       issuer: jwtConfig.issuer,
       audience: jwtConfig.audience,
-      algorithm: jwtConfig.algorithm,
-    }
+      algorithm: jwtConfig.algorithm as jwt.Algorithm,
+    } as jwt.SignOptions
   );
 };
 
@@ -226,7 +226,7 @@ export const generateRefreshToken = (userId: string, email: string): string => {
       expiresIn: jwtConfig.refreshExpiresIn,
       issuer: jwtConfig.issuer,
       audience: jwtConfig.audience,
-      algorithm: jwtConfig.algorithm,
+      algorithm: jwtConfig.algorithm as jwt.Algorithm,
     }
   );
 };

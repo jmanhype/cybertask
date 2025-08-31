@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import Joi from 'joi';
 import {
   getNotifications,
   markNotificationAsRead,
@@ -22,7 +23,7 @@ router.get('/', getNotifications);
  * @access  Private
  */
 router.put('/:id/read', 
-  validateRequest({ params: { id: commonSchemas.userId.extract('id') } }), 
+  validateRequest({ params: Joi.object({ id: Joi.string().required() }) }), 
   markNotificationAsRead
 );
 
@@ -39,7 +40,7 @@ router.put('/read-all', markAllAsRead);
  * @access  Private
  */
 router.delete('/:id', 
-  validateRequest({ params: { id: commonSchemas.userId.extract('id') } }), 
+  validateRequest({ params: Joi.object({ id: Joi.string().required() }) }), 
   deleteNotification
 );
 

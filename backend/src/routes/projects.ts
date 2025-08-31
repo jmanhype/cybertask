@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import Joi from 'joi';
 import {
   createProject,
   getAllProjects,
@@ -86,10 +87,10 @@ router.post('/:projectId/members',
  */
 router.delete('/:projectId/members/:userId', 
   validateRequest({ 
-    params: {
-      projectId: commonSchemas.projectId.extract('projectId'),
-      userId: commonSchemas.userId.extract('id')
-    }
+    params: Joi.object({
+      projectId: Joi.string().required(),
+      userId: Joi.string().required()
+    })
   }), 
   removeProjectMember
 );

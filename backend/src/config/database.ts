@@ -198,29 +198,14 @@ export const seedDatabase = async (): Promise<void> => {
           lastName: 'User',
           password: hashedPassword,
           role: 'SUPER_ADMIN',
-          isVerified: true,
+          emailVerified: true,
         },
       });
       
       logger.info('✅ Admin user created');
     }
 
-    // Create default tags
-    const defaultTags = [
-      { name: 'urgent', color: '#EF4444' },
-      { name: 'bug', color: '#F59E0B' },
-      { name: 'feature', color: '#10B981' },
-      { name: 'enhancement', color: '#3B82F6' },
-      { name: 'documentation', color: '#8B5CF6' },
-    ];
-
-    for (const tag of defaultTags) {
-      await prisma.tag.upsert({
-        where: { name: tag.name },
-        update: {},
-        create: tag,
-      });
-    }
+    // Tags functionality removed - model doesn't exist
     
     logger.info('✅ Default tags created');
     logger.info('🎉 Database seeding completed');
