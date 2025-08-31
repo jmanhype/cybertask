@@ -1,0 +1,355 @@
+name: Code Quality & Formatting
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # Lint and format checks
+  lint-and-format:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        directory: [backend, frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.directory }}
+        run: npm ci
+
+      - name: Run ESLint
+        working-directory: ${{ matrix.directory }}
+        run: |
+          npx eslint . --ext .ts,.tsx,.js,.jsx --format json --output-file eslint-results.json --max-warnings 0 || true
+          npx eslint . --ext .ts,.tsx,.js,.jsx --format table
+
+      - name: Check Prettier formatting
+        working-directory: ${{ matrix.directory }}
+        run: |
+          if command -v prettier &> /dev/null; then
+            npx prettier --check . --ignore-path .gitignore
+          else
+            echo "Prettier not found in ${{ matrix.directory }}, skipping format check"
+          fi
+
+      - name: Upload ESLint results
+        uses: actions/upload-artifact@v3
+        with:
+          name: eslint-results-${{ matrix.directory }}
+          path: ${{ matrix.directory }}/eslint-results.json
+
+  # TypeScript strict checks
+  typescript-strict:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        directory: [backend, frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.directory }}
+        run: npm ci
+
+      - name: Run TypeScript compiler check
+        working-directory: ${{ matrix.directory }}
+        run: npx tsc --noEmit --strict
+
+      - name: Check for unused exports
+        working-directory: ${{ matrix.directory }}
+        run: |
+          if npm list ts-unused-exports &> /dev/null; then
+            npx ts-unused-exports tsconfig.json --excludePathsFromReport=dist
+          else
+            echo "ts-unused-exports not installed, skipping unused exports check"
+          fi
+
+  # Code complexity and maintainability
+  complexity-analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install analysis tools
+        run: |
+          npm install -g complexity-report
+          npm install -g jscpd
+
+      - name: Analyze code complexity
+        run: |
+          echo "# 📊 Code Complexity Analysis" >> complexity-report.md
+          echo "" >> complexity-report.md
+          
+          # Backend complexity
+          echo "## Backend Complexity" >> complexity-report.md
+          cd backend/src
+          for file in $(find . -name "*.ts" -not -path "./node_modules/*"); do
+            echo "### $file" >> ../../complexity-report.md
+            complexity-report --output json --file "$file" >> ../../complexity-backend.json 2>/dev/null || true
+          done
+          cd ../..
+          
+          # Frontend complexity
+          echo "## Frontend Complexity" >> complexity-report.md
+          cd frontend/src
+          for file in $(find . -name "*.ts" -o -name "*.tsx" -not -path "./node_modules/*"); do
+            echo "### $file" >> ../../complexity-report.md
+            complexity-report --output json --file "$file" >> ../../complexity-frontend.json 2>/dev/null || true
+          done
+          cd ../..
+
+      - name: Check for code duplication
+        run: |
+          jscpd --reporters html,json --output ./jscpd-report backend/src frontend/src || true
+          
+          echo "## 🔄 Code Duplication Report" >> complexity-report.md
+          echo "" >> complexity-report.md
+          
+          if [ -f jscpd-report/jscpd-report.json ]; then
+            echo "Duplication report generated. Check artifacts for details." >> complexity-report.md
+          else
+            echo "No significant code duplication detected." >> complexity-report.md
+          fi
+
+      - name: Upload complexity analysis
+        uses: actions/upload-artifact@v3
+        with:
+          name: complexity-analysis
+          path: |
+            complexity-report.md
+            complexity-backend.json
+            complexity-frontend.json
+            jscpd-report/
+
+  # Dependency analysis
+  dependency-analysis:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        directory: [backend, frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.directory }}
+        run: npm ci
+
+      - name: Analyze bundle size (Frontend only)
+        if: matrix.directory == 'frontend'
+        working-directory: ${{ matrix.directory }}
+        run: |
+          npm run build
+          npx bundlesize check || true
+
+      - name: Check for outdated packages
+        working-directory: ${{ matrix.directory }}
+        run: |
+          npm outdated --json > outdated-packages-${{ matrix.directory }}.json || true
+          npm outdated || true
+
+      - name: Analyze dependency tree
+        working-directory: ${{ matrix.directory }}
+        run: |
+          npm ls --all --json > dependency-tree-${{ matrix.directory }}.json || true
+          npm ls --depth=1
+
+      - name: Upload dependency analysis
+        uses: actions/upload-artifact@v3
+        with:
+          name: dependency-analysis-${{ matrix.directory }}
+          path: |
+            ${{ matrix.directory }}/outdated-packages-${{ matrix.directory }}.json
+            ${{ matrix.directory }}/dependency-tree-${{ matrix.directory }}.json
+
+  # Auto-fix and suggestions (PR only)
+  auto-fix:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    strategy:
+      matrix:
+        directory: [backend, frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.directory }}
+        run: npm ci
+
+      - name: Auto-fix ESLint issues
+        working-directory: ${{ matrix.directory }}
+        run: |
+          npx eslint . --ext .ts,.tsx,.js,.jsx --fix || true
+
+      - name: Auto-format with Prettier
+        working-directory: ${{ matrix.directory }}
+        run: |
+          if command -v prettier &> /dev/null; then
+            npx prettier --write . --ignore-path .gitignore
+          fi
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit auto-fixes
+        if: steps.changes.outputs.changes == 'true'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "🔧 Auto-fix code quality issues in ${{ matrix.directory }}
+
+          - Fixed ESLint violations
+          - Applied Prettier formatting
+          
+          [skip ci]"
+          git push
+
+  # Quality gate and summary
+  quality-gate:
+    needs: [lint-and-format, typescript-strict, complexity-analysis, dependency-analysis]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Analyze results and create summary
+        run: |
+          echo "# 🎯 Code Quality Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Quality checks summary
+          echo "## Quality Checks" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Linting & Formatting | ${{ needs.lint-and-format.result == 'success' && '✅ Passed' || '❌ Failed' }} | ESLint and Prettier checks |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeScript Strict | ${{ needs.typescript-strict.result == 'success' && '✅ Passed' || '❌ Failed' }} | Strict TypeScript compilation |" >> $GITHUB_STEP_SUMMARY
+          echo "| Complexity Analysis | ${{ needs.complexity-analysis.result == 'success' && '✅ Passed' || '❌ Failed' }} | Code complexity and duplication |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Analysis | ${{ needs.dependency-analysis.result == 'success' && '✅ Passed' || '❌ Failed' }} | Package and bundle analysis |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall quality score
+          PASSED_CHECKS=0
+          TOTAL_CHECKS=4
+          
+          [[ "${{ needs.lint-and-format.result }}" == "success" ]] && ((PASSED_CHECKS++))
+          [[ "${{ needs.typescript-strict.result }}" == "success" ]] && ((PASSED_CHECKS++))
+          [[ "${{ needs.complexity-analysis.result }}" == "success" ]] && ((PASSED_CHECKS++))
+          [[ "${{ needs.dependency-analysis.result }}" == "success" ]] && ((PASSED_CHECKS++))
+          
+          QUALITY_SCORE=$((PASSED_CHECKS * 100 / TOTAL_CHECKS))
+          
+          if [ $QUALITY_SCORE -eq 100 ]; then
+            QUALITY_STATUS="🟢 EXCELLENT"
+          elif [ $QUALITY_SCORE -ge 75 ]; then
+            QUALITY_STATUS="🟡 GOOD"
+          elif [ $QUALITY_SCORE -ge 50 ]; then
+            QUALITY_STATUS="🟠 NEEDS IMPROVEMENT"
+          else
+            QUALITY_STATUS="🔴 POOR"
+          fi
+          
+          echo "## 📊 Overall Quality Score: $QUALITY_SCORE% - $QUALITY_STATUS" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Recommendations
+          echo "## 💡 Recommendations" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.lint-and-format.result }}" != "success" ]; then
+            echo "- 🔧 Fix ESLint violations and formatting issues" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.typescript-strict.result }}" != "success" ]; then
+            echo "- 📝 Address TypeScript strict mode violations" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.complexity-analysis.result }}" != "success" ]; then
+            echo "- 🔄 Refactor complex functions and reduce code duplication" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.dependency-analysis.result }}" != "success" ]; then
+            echo "- 📦 Update outdated packages and optimize bundle size" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ $QUALITY_SCORE -eq 100 ]; then
+            echo "- ✨ Excellent code quality! Keep up the good work!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Quality gate check
+        run: |
+          FAILED_JOBS=0
+          
+          [[ "${{ needs.lint-and-format.result }}" == "failure" ]] && ((FAILED_JOBS++))
+          [[ "${{ needs.typescript-strict.result }}" == "failure" ]] && ((FAILED_JOBS++))
+          
+          if [ $FAILED_JOBS -gt 0 ]; then
+            echo "❌ Quality gate failed: $FAILED_JOBS critical checks failed"
+            exit 1
+          else
+            echo "✅ Quality gate passed"
+          fi

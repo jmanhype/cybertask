@@ -1,0 +1,418 @@
+name: Release Management
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.2.3)'
+        required: true
+        type: string
+      release_type:
+        description: 'Type of release'
+        required: true
+        default: 'stable'
+        type: choice
+        options:
+          - stable
+          - pre-release
+          - hotfix
+      generate_changelog:
+        description: 'Generate changelog'
+        required: false
+        default: true
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Validate release
+  validate-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+      
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Check if it's a pre-release
+          if [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc) ]] || [ "${{ inputs.release_type }}" == "pre-release" ]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+(\.[0-9]+)?)?$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Expected format: v1.2.3 or v1.2.3-alpha.1"
+            exit 1
+          fi
+
+      - name: Check if version already exists
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git tag -l | grep -q "^$VERSION$"; then
+            echo "❌ Version $VERSION already exists"
+            exit 1
+          fi
+
+  # Build release artifacts
+  build-release:
+    needs: validate-release
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.service }}
+        run: npm ci
+
+      - name: Update version in package.json
+        working-directory: ${{ matrix.service }}
+        run: |
+          VERSION="${{ needs.validate-release.outputs.version }}"
+          npm version ${VERSION#v} --no-git-tag-version
+
+      - name: Build application
+        working-directory: ${{ matrix.service }}
+        run: npm run build
+
+      - name: Create release archive
+        run: |
+          cd ${{ matrix.service }}
+          tar -czf ../cybertask-${{ matrix.service }}-${{ needs.validate-release.outputs.version }}.tar.gz \
+            dist/ package.json README.md
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: cybertask-${{ matrix.service }}-${{ needs.validate-release.outputs.version }}
+          path: cybertask-${{ matrix.service }}-${{ needs.validate-release.outputs.version }}.tar.gz
+
+  # Build and push Docker images
+  build-docker-images:
+    needs: [validate-release, build-release]
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}
+          tags: |
+            type=raw,value=${{ needs.validate-release.outputs.version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            VERSION=${{ needs.validate-release.outputs.version }}
+            NODE_ENV=production
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}:${{ needs.validate-release.outputs.version }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.service }}-${{ needs.validate-release.outputs.version }}.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom-${{ matrix.service }}
+          path: sbom-${{ matrix.service }}-${{ needs.validate-release.outputs.version }}.spdx.json
+
+  # Generate changelog
+  generate-changelog:
+    if: inputs.generate_changelog == true || github.event_name == 'push'
+    needs: validate-release
+    runs-on: ubuntu-latest
+    outputs:
+      changelog: ${{ steps.changelog.outputs.changelog }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.validate-release.outputs.version }}"
+          PREV_VERSION=$(git tag --sort=-version:refname | head -n1)
+          
+          if [ -z "$PREV_VERSION" ]; then
+            PREV_VERSION=$(git rev-list --max-parents=0 HEAD)
+          fi
+          
+          echo "Generating changelog from $PREV_VERSION to $VERSION"
+          
+          # Generate changelog using git log
+          CHANGELOG=$(cat << 'EOF'
+          ## What's Changed
+          
+          $(git log $PREV_VERSION..HEAD --pretty=format:"- %s (%an)" --no-merges | sed 's/^//')
+          
+          ## 🚀 New Features
+          $(git log $PREV_VERSION..HEAD --pretty=format:"- %s (%an)" --grep="feat:" --no-merges | sed 's/^//')
+          
+          ## 🐛 Bug Fixes
+          $(git log $PREV_VERSION..HEAD --pretty=format:"- %s (%an)" --grep="fix:" --no-merges | sed 's/^//')
+          
+          ## 📚 Documentation
+          $(git log $PREV_VERSION..HEAD --pretty=format:"- %s (%an)" --grep="docs:" --no-merges | sed 's/^//')
+          
+          ## 🔧 Maintenance
+          $(git log $PREV_VERSION..HEAD --pretty=format:"- %s (%an)" --grep="chore:" --no-merges | sed 's/^//')
+          
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREV_VERSION...$VERSION
+          EOF
+          )
+          
+          # Escape for GitHub output
+          {
+            echo 'changelog<<EOF'
+            echo "$CHANGELOG"
+            echo 'EOF'
+          } >> $GITHUB_OUTPUT
+
+  # Security scan before release
+  security-scan:
+    needs: build-docker-images
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}:${{ needs.validate-release.outputs.version }}
+          format: 'json'
+          output: 'trivy-results-${{ matrix.service }}.json'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload security scan results
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-scan-${{ matrix.service }}
+          path: trivy-results-${{ matrix.service }}.json
+
+  # Create GitHub release
+  create-release:
+    needs: [validate-release, build-release, build-docker-images, generate-changelog, security-scan]
+    if: always() && needs.validate-release.result == 'success' && needs.build-release.result == 'success' && needs.build-docker-images.result == 'success' && (needs.security-scan.result == 'success' || needs.security-scan.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Create release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            const version = '${{ needs.validate-release.outputs.version }}';
+            const isPrerelease = ${{ needs.validate-release.outputs.is_prerelease }};
+            const changelog = `${{ needs.generate-changelog.outputs.changelog || 'No changelog generated' }}`;
+            
+            // Create the release
+            const { data: release } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: version,
+              name: `CyberTask ${version}`,
+              body: changelog,
+              draft: false,
+              prerelease: isPrerelease,
+              generate_release_notes: true
+            });
+            
+            console.log(`Created release: ${release.html_url}`);
+            
+            // Upload release assets
+            const assets = [
+              'cybertask-backend-' + version + '.tar.gz',
+              'cybertask-frontend-' + version + '.tar.gz'
+            ];
+            
+            for (const asset of assets) {
+              if (fs.existsSync(asset)) {
+                const data = fs.readFileSync(asset);
+                await github.rest.repos.uploadReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: release.id,
+                  name: asset,
+                  data: data
+                });
+                console.log(`Uploaded asset: ${asset}`);
+              }
+            }
+
+  # Post-release notifications
+  post-release:
+    needs: [validate-release, create-release]
+    if: always() && needs.create-release.result == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify team
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const webhook = '${{ secrets.RELEASE_WEBHOOK }}';
+            const version = '${{ needs.validate-release.outputs.version }}';
+            const isPrerelease = ${{ needs.validate-release.outputs.is_prerelease }};
+            
+            if (webhook) {
+              const releaseType = isPrerelease ? 'Pre-release' : 'Release';
+              
+              await fetch(webhook, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  text: `🎉 CyberTask ${version} ${releaseType} is now available!`,
+                  blocks: [
+                    {
+                      type: 'section',
+                      text: {
+                        type: 'mrkdwn',
+                        text: `*🎉 New ${releaseType} Available*\n\n*Version:* ${version}\n*Repository:* ${{ github.repository }}\n*Release Notes:* https://github.com/${{ github.repository }}/releases/tag/${version}`
+                      }
+                    }
+                  ]
+                })
+              });
+            }
+
+      - name: Update documentation
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Trigger documentation update workflow if it exists
+            const workflows = await github.rest.actions.listRepoWorkflows({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            const docWorkflow = workflows.data.workflows.find(w => 
+              w.name.toLowerCase().includes('docs') || 
+              w.name.toLowerCase().includes('documentation')
+            );
+            
+            if (docWorkflow) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: docWorkflow.id,
+                ref: 'main',
+                inputs: {
+                  version: '${{ needs.validate-release.outputs.version }}'
+                }
+              });
+              
+              console.log('Triggered documentation update workflow');
+            }
+
+      - name: Create milestone for next version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ needs.validate-release.outputs.version }}';
+            const versionParts = version.replace('v', '').split('.');
+            
+            // Calculate next minor version
+            const nextMinor = `v${versionParts[0]}.${parseInt(versionParts[1]) + 1}.0`;
+            
+            try {
+              await github.rest.issues.createMilestone({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: nextMinor,
+                description: `Milestone for version ${nextMinor}`,
+                state: 'open'
+              });
+              
+              console.log(`Created milestone for ${nextMinor}`);
+            } catch (error) {
+              console.log(`Milestone ${nextMinor} may already exist: ${error.message}`);
+            }

@@ -1,0 +1,393 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [main, develop, feature/*]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Detect changes to optimize workflow execution
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+      database: ${{ steps.changes.outputs.database }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'database/**'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+            database:
+              - 'database/**'
+              - 'backend/prisma/**'
+
+  # Backend CI Pipeline
+  backend-ci:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cybertask_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    strategy:
+      matrix:
+        node-version: [18, 20]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npm run prisma:generate
+
+      - name: Run database migrations
+        working-directory: backend
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cybertask_test
+
+      - name: TypeScript type checking
+        working-directory: backend
+        run: npm run typecheck
+
+      - name: ESLint check
+        working-directory: backend
+        run: npm run lint
+
+      - name: Run unit tests
+        working-directory: backend
+        run: npm run test:coverage
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cybertask_test
+          JWT_SECRET: test-jwt-secret
+          REDIS_URL: redis://localhost:6379
+
+      - name: Run integration tests
+        working-directory: backend
+        run: npm test -- --testPathPattern=integration
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cybertask_test
+          JWT_SECRET: test-jwt-secret
+          REDIS_URL: redis://localhost:6379
+
+      - name: Upload test coverage to Codecov
+        if: matrix.node-version == 18
+        uses: codecov/codecov-action@v4
+        with:
+          directory: backend/coverage
+          flags: backend
+          name: backend-coverage
+
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Cache backend build
+        if: matrix.node-version == 18
+        uses: actions/cache@v3
+        with:
+          path: backend/dist
+          key: backend-build-${{ github.sha }}
+
+  # Frontend CI Pipeline
+  frontend-ci:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18, 20]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: TypeScript type checking
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: ESLint check
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run unit tests
+        working-directory: frontend
+        run: npm run test:coverage
+
+      - name: Upload test coverage to Codecov
+        if: matrix.node-version == 18
+        uses: codecov/codecov-action@v4
+        with:
+          directory: frontend/coverage
+          flags: frontend
+          name: frontend-coverage
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Cache frontend build
+        if: matrix.node-version == 18
+        uses: actions/cache@v3
+        with:
+          path: frontend/dist
+          key: frontend-build-${{ github.sha }}
+
+  # E2E Tests
+  e2e-tests:
+    needs: [backend-ci, frontend-ci]
+    if: always() && (needs.backend-ci.result == 'success' || needs.backend-ci.result == 'skipped') && (needs.frontend-ci.result == 'success' || needs.frontend-ci.result == 'skipped')
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cybertask_e2e
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Setup database
+        working-directory: backend
+        run: |
+          npm run prisma:generate
+          npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cybertask_e2e
+
+      - name: Build applications
+        run: |
+          cd backend && npm run build
+          cd ../frontend && npm run build
+
+      - name: Start backend server
+        working-directory: backend
+        run: npm start &
+        env:
+          NODE_ENV: production
+          PORT: 3001
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/cybertask_e2e
+          JWT_SECRET: test-jwt-secret
+          REDIS_URL: redis://localhost:6379
+
+      - name: Start frontend server
+        working-directory: frontend
+        run: npm run preview -- --port 3000 &
+
+      - name: Wait for servers
+        run: |
+          npx wait-on http://localhost:3001/health http://localhost:3000
+
+      - name: Run Cypress E2E tests
+        uses: cypress-io/github-action@v6
+        with:
+          working-directory: e2e
+          browser: chrome
+          headless: true
+          record: true
+        env:
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload E2E test screenshots
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: cypress-screenshots
+          path: e2e/cypress/screenshots
+
+      - name: Upload E2E test videos
+        uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: cypress-videos
+          path: e2e/cypress/videos
+
+  # Docker Build and Security Scan
+  docker-build:
+    needs: [backend-ci, frontend-ci]
+    if: always() && (needs.backend-ci.result == 'success' || needs.backend-ci.result == 'skipped') && (needs.frontend-ci.result == 'success' || needs.frontend-ci.result == 'skipped')
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service: [backend, frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          push: false
+          tags: cybertask-${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: cybertask-${{ matrix.service }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.service }}.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results-${{ matrix.service }}.sarif'
+
+  # Code Quality Gate
+  quality-gate:
+    needs: [backend-ci, frontend-ci, e2e-tests, docker-build]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check CI results
+        run: |
+          echo "Backend CI: ${{ needs.backend-ci.result }}"
+          echo "Frontend CI: ${{ needs.frontend-ci.result }}"
+          echo "E2E Tests: ${{ needs.e2e-tests.result }}"
+          echo "Docker Build: ${{ needs.docker-build.result }}"
+          
+          if [[ "${{ needs.backend-ci.result }}" == "failure" || "${{ needs.frontend-ci.result }}" == "failure" ]]; then
+            echo "❌ Quality gate failed: CI tests failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.e2e-tests.result }}" == "failure" ]]; then
+            echo "❌ Quality gate failed: E2E tests failed"
+            exit 1
+          fi
+          
+          if [[ "${{ needs.docker-build.result }}" == "failure" ]]; then
+            echo "❌ Quality gate failed: Docker build failed"
+            exit 1
+          fi
+          
+          echo "✅ Quality gate passed"
+
+      - name: Update commit status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const state = '${{ needs.backend-ci.result }}' === 'failure' || 
+                         '${{ needs.frontend-ci.result }}' === 'failure' || 
+                         '${{ needs.e2e-tests.result }}' === 'failure' || 
+                         '${{ needs.docker-build.result }}' === 'failure' ? 'failure' : 'success';
+            
+            github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: state,
+              target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              description: state === 'success' ? 'All checks passed' : 'Some checks failed',
+              context: 'ci/quality-gate'
+            });
