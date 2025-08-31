@@ -18,7 +18,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install all dependencies (including dev dependencies for build)
-RUN npm ci --frozen-lockfile
+RUN npm install --frozen-lockfile
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -34,9 +34,8 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build && \
-    npm prune --production
+# Build the application using custom Docker build script
+RUN node scripts/docker-build.js && npm prune --production
 
 # Production stage
 FROM node:18-alpine AS runner

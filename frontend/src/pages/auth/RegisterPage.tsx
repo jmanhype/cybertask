@@ -8,6 +8,7 @@ import { RegisterData } from '../../types';
 import Button from '../../components/common/Button';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { errorMessage } from '../../utils/errorMessage';
 
 const schema = yup.object({
   firstName: yup.string().required('First name is required').max(50),
@@ -55,7 +56,7 @@ const RegisterPage: React.FC = () => {
       toast.success('Account created successfully!');
       navigate('/dashboard');
     } catch (error: any) {
-      toast.error(error || 'Registration failed');
+      toast.error(errorMessage(error) || 'Registration failed');
     }
   };
 

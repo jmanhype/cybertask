@@ -10,7 +10,7 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
 import { logger } from './config/logger';
-import { config as env } from './config/environment';
+import { config as env, corsConfig } from './config/environment';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { authMiddleware } from './middleware/auth';
@@ -22,6 +22,7 @@ import userRoutes from './routes/users';
 import projectRoutes from './routes/projects';
 import taskRoutes from './routes/tasks';
 import notificationRoutes from './routes/notifications';
+import dashboardRoutes from './routes/dashboard';
 
 // Load environment variables
 dotenv.config();
@@ -30,7 +31,17 @@ const app = express();
 const server = createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
-    origin: env.CORS_ORIGIN,
+    origin: (origin, callback) => {
+      const allowedOrigins = env.CORS_ORIGIN.split(',').map(origin => origin.trim());
+      // Allow requests with no origin (like mobile apps)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST'],
   },
 });
@@ -50,13 +61,8 @@ app.use(helmet({
   },
 }));
 
-// CORS configuration
-app.use(cors({
-  origin: env.CORS_ORIGIN,
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-refresh-token'],
-}));
+// CORS configuration using environment-based configuration
+app.use(cors(corsConfig));
 
 // Compression middleware
 app.use(compression());
@@ -100,6 +106,7 @@ app.use('/api/users', authMiddleware, userRoutes);
 app.use('/api/projects', authMiddleware, projectRoutes);
 app.use('/api/tasks', authMiddleware, taskRoutes);
 app.use('/api/notifications', authMiddleware, notificationRoutes);
+app.use('/api/dashboard', authMiddleware, dashboardRoutes);
 
 // Socket.IO for real-time features
 io.use((socket, next) => {

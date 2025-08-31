@@ -91,6 +91,7 @@ export const commonSchemas = {
 export const userSchemas = {
   register: Joi.object({
     email: Joi.string().email().required(),
+    username: Joi.string().min(3).max(50).required(),
     password: Joi.string().min(8).max(128).required()
       .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
       .message('Password must contain at least one lowercase letter, one uppercase letter, one digit, and one special character'),

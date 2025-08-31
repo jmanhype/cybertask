@@ -2,19 +2,22 @@ import { api } from './api';
 import { User, LoginCredentials, RegisterData, ApiResponse } from '../types';
 
 export const authService = {
-  async login(credentials: LoginCredentials): Promise<ApiResponse<{ user: User; token: string }>> {
+  async login(credentials: LoginCredentials) {
     const response = await api.post('/auth/login', credentials);
-    return response.data;
+    // Backend returns {success: true, data: {user: {...}, tokens: {...}}}
+    return response.data.data;
   },
 
-  async register(userData: RegisterData): Promise<ApiResponse<{ user: User; token: string }>> {
+  async register(userData: RegisterData) {
     const response = await api.post('/auth/register', userData);
-    return response.data;
+    // Backend returns {success: true, data: {user: {...}, tokens: {...}}}
+    return response.data.data;
   },
 
-  async getCurrentUser(): Promise<ApiResponse<User>> {
+  async getCurrentUser() {
     const response = await api.get('/auth/me');
-    return response.data;
+    // Backend returns {success: true, data: {user: {...}}}
+    return response.data.data;
   },
 
   async logout(): Promise<void> {

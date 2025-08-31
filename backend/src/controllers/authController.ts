@@ -19,15 +19,24 @@ const prisma = new PrismaClient();
  * @access  Public
  */
 export const register = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const { email, password, firstName, lastName } = req.body;
+  const { email, username, password, firstName, lastName } = req.body;
 
-  // Check if user already exists
-  const existingUser = await prisma.user.findUnique({
+  // Check if user already exists by email
+  const existingUserByEmail = await prisma.user.findUnique({
     where: { email: email.toLowerCase() },
   });
 
-  if (existingUser) {
+  if (existingUserByEmail) {
     throw new AppError('User with this email already exists', 409, 'USER_EXISTS');
+  }
+
+  // Check if username is taken
+  const existingUserByUsername = await prisma.user.findUnique({
+    where: { username: username.toLowerCase() },
+  });
+
+  if (existingUserByUsername) {
+    throw new AppError('Username is already taken', 409, 'USERNAME_EXISTS');
   }
 
   // Hash password
@@ -37,6 +46,7 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
   const user = await prisma.user.create({
     data: {
       email: email.toLowerCase(),
+      username: username.toLowerCase(),
       password: hashedPassword,
       firstName,
       lastName,
@@ -161,6 +171,43 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
         refreshToken,
       },
     },
+  });
+});
+
+/**
+ * @desc    Get current user
+ * @route   GET /api/auth/me
+ * @access  Private
+ */
+export const getMe = asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  const userId = req.userId;
+
+  if (!userId) {
+    throw new AppError('User not authenticated', 401, 'NOT_AUTHENTICATED');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      username: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      isActive: true,
+      emailVerified: true,
+      createdAt: true,
+    },
+  });
+
+  if (!user) {
+    throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+  }
+
+  res.json({
+    success: true,
+    data: { user },
   });
 });
 

@@ -34,13 +34,13 @@ const DashboardPage: React.FC = () => {
     dispatch(fetchProjects());
   }, [dispatch]);
 
-  const recentTasks = tasks
+  const recentTasks = Array.isArray(tasks) ? tasks
     .filter(task => task.creatorId === user?.id || task.assigneeId === user?.id)
-    .slice(0, 6);
+    .slice(0, 6) : [];
 
-  const overdueTasks = tasks.filter(task => 
+  const overdueTasks = Array.isArray(tasks) ? tasks.filter(task => 
     task.dueDate && new Date(task.dueDate) < new Date() && task.status !== TaskStatus.DONE
-  );
+  ) : [];
 
   const stats = [
     {
@@ -189,14 +189,14 @@ const DashboardPage: React.FC = () => {
                 </Link>
               </div>
               <div className="p-6">
-                {projects.length === 0 ? (
+                {!Array.isArray(projects) || projects.length === 0 ? (
                   <div className="text-center py-8">
                     <FolderIcon className="mx-auto h-8 w-8 text-gray-400" />
                     <p className="mt-2 text-sm text-gray-500">No projects yet</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {projects.slice(0, 5).map((project) => (
+                    {Array.isArray(projects) && projects.slice(0, 5).map((project) => (
                       <Link
                         key={project.id}
                         to={`/projects/${project.id}`}

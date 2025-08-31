@@ -15,8 +15,10 @@ export const loginUser = createAsyncThunk(
   async (credentials: LoginCredentials, { rejectWithValue }) => {
     try {
       const response = await authService.login(credentials);
-      localStorage.setItem('token', response.data.token);
-      return response.data;
+      // The response is already the data object from authService
+      const token = response.tokens?.accessToken || response.token;
+      localStorage.setItem('token', token);
+      return { user: response.user, token };
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Login failed');
     }
@@ -28,8 +30,10 @@ export const registerUser = createAsyncThunk(
   async (userData: RegisterData, { rejectWithValue }) => {
     try {
       const response = await authService.register(userData);
-      localStorage.setItem('token', response.data.token);
-      return response.data;
+      // The response is already the data object from authService
+      const token = response.tokens?.accessToken || response.token;
+      localStorage.setItem('token', token);
+      return { user: response.user, token };
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Registration failed');
     }
@@ -41,7 +45,8 @@ export const loadUser = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await authService.getCurrentUser();
-      return response.data;
+      // The response is already the data object, which contains {user: {...}}
+      return response.user;
     } catch (error: any) {
       localStorage.removeItem('token');
       return rejectWithValue(error.response?.data?.message || 'Failed to load user');

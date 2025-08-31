@@ -16,7 +16,7 @@ FROM base AS deps
 COPY package*.json ./
 
 # Install all dependencies (including dev dependencies for build)
-RUN npm ci --frozen-lockfile
+RUN npm install --frozen-lockfile
 
 # Build stage
 FROM base AS builder
@@ -38,8 +38,8 @@ ENV NODE_ENV=$NODE_ENV
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_VERSION=$VERSION
 
-# Build the application
-RUN npm run build
+# Build the application with Docker-specific configuration
+RUN npx vite build --config vite.config.docker.ts
 
 # Production stage with Nginx
 FROM nginx:1.24-alpine AS runner

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   register,
   login,
+  getMe,
   refreshToken,
   logout,
   forgotPassword,
@@ -27,6 +28,13 @@ router.post('/register', validateRequest({ body: userSchemas.register }), regist
  * @access  Public
  */
 router.post('/login', validateRequest({ body: userSchemas.login }), login);
+
+/**
+ * @route   GET /api/auth/me
+ * @desc    Get current user
+ * @access  Private
+ */
+router.get('/me', authMiddleware, getMe);
 
 /**
  * @route   POST /api/auth/refresh

@@ -106,7 +106,8 @@ const taskSlice = createSlice({
       })
       .addCase(fetchTasks.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.tasks = action.payload;
+        // Ensure we always have an array
+        state.tasks = Array.isArray(action.payload) ? action.payload : [];
       })
       .addCase(fetchTasks.rejected, (state, action) => {
         state.isLoading = false;

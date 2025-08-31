@@ -9,6 +9,7 @@ import { RootState, AppDispatch } from '../../store/store';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
 import toast from 'react-hot-toast';
+import { errorMessage } from '../../utils/errorMessage';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ isOpen, onClose }) =>
       reset();
       onClose();
     } catch (error: any) {
-      toast.error(error || 'Failed to create task');
+      toast.error(errorMessage(error) || 'Failed to create task');
     }
   };
 

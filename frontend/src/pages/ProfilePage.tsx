@@ -9,6 +9,7 @@ import Button from '../components/common/Button';
 import { UserIcon, CameraIcon } from '@heroicons/react/24/outline';
 import { getInitials } from '../utils/formatters';
 import toast from 'react-hot-toast';
+import { errorMessage } from '../utils/errorMessage';
 
 const schema = yup.object({
   firstName: yup.string().required('First name is required').max(50),
@@ -41,7 +42,7 @@ const ProfilePage: React.FC = () => {
       refreshUser();
       setIsEditing(false);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to update profile');
+      toast.error(errorMessage(error) || 'Failed to update profile');
     } finally {
       setIsLoading(false);
     }

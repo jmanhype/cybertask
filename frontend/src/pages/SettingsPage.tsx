@@ -13,6 +13,7 @@ import {
   ComputerDesktopIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { errorMessage } from '../utils/errorMessage';
 
 const passwordSchema = yup.object({
   currentPassword: yup.string().required('Current password is required'),
@@ -64,7 +65,7 @@ const SettingsPage: React.FC = () => {
       toast.success('Password changed successfully');
       resetPassword();
     } catch (error: any) {
-      toast.error(error.message || 'Failed to change password');
+      toast.error(errorMessage(error) || 'Failed to change password');
     } finally {
       setIsChangingPassword(false);
     }

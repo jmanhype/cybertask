@@ -8,6 +8,7 @@ import { LoginCredentials } from '../../types';
 import Button from '../../components/common/Button';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { errorMessage } from '../../utils/errorMessage';
 
 const schema = yup.object({
   email: yup.string().email('Invalid email').required('Email is required'),
@@ -42,7 +43,7 @@ const LoginPage: React.FC = () => {
       toast.success('Welcome back!');
       navigate(from, { replace: true });
     } catch (error: any) {
-      toast.error(error || 'Login failed');
+      toast.error(errorMessage(error) || 'Login failed');
     }
   };
 
