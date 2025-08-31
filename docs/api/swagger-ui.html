@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CyberTask API Documentation</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui.css" />
+    <link rel="icon" type="image/png" href="https://unpkg.com/swagger-ui-dist@4.15.5/favicon-32x32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="https://unpkg.com/swagger-ui-dist@4.15.5/favicon-16x16.png" sizes="16x16" />
+    <style>
+        html {
+            box-sizing: border-box;
+            overflow: -moz-scrollbars-vertical;
+            overflow-y: scroll;
+        }
+        *, *:before, *:after {
+            box-sizing: inherit;
+        }
+        body {
+            margin: 0;
+            background: #fafafa;
+            font-family: 'Roboto', sans-serif;
+        }
+        .swagger-ui .topbar {
+            background-color: #1f2937;
+            border-bottom: 1px solid #374151;
+        }
+        .swagger-ui .topbar .link {
+            color: #f9fafb;
+        }
+        .swagger-ui .btn.authorize {
+            background-color: #059669;
+            border-color: #059669;
+        }
+        .swagger-ui .btn.authorize:hover {
+            background-color: #047857;
+            border-color: #047857;
+        }
+        .swagger-ui .info {
+            margin: 50px 0;
+        }
+        .swagger-ui .info .title {
+            color: #1f2937;
+            font-size: 36px;
+            margin: 0 0 20px 0;
+        }
+        .swagger-ui .info .description p {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #4b5563;
+        }
+        .swagger-ui .scheme-container {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+        }
+        .swagger-ui .opblock.opblock-post {
+            border-color: #059669;
+            background: rgba(5, 150, 105, 0.1);
+        }
+        .swagger-ui .opblock.opblock-post .opblock-summary-method {
+            background: #059669;
+        }
+        .swagger-ui .opblock.opblock-get {
+            border-color: #2563eb;
+            background: rgba(37, 99, 235, 0.1);
+        }
+        .swagger-ui .opblock.opblock-get .opblock-summary-method {
+            background: #2563eb;
+        }
+        .swagger-ui .opblock.opblock-put {
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.1);
+        }
+        .swagger-ui .opblock.opblock-put .opblock-summary-method {
+            background: #f59e0b;
+        }
+        .swagger-ui .opblock.opblock-delete {
+            border-color: #dc2626;
+            background: rgba(220, 38, 38, 0.1);
+        }
+        .swagger-ui .opblock.opblock-delete .opblock-summary-method {
+            background: #dc2626;
+        }
+        .custom-header {
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 0;
+        }
+        .custom-header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+        .custom-header p {
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        .api-info {
+            background: white;
+            padding: 30px;
+            margin: 0 0 30px 0;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        .api-info h2 {
+            color: #1f2937;
+            margin: 0 0 15px 0;
+            font-size: 1.5rem;
+        }
+        .api-info ul {
+            padding-left: 20px;
+            color: #4b5563;
+        }
+        .api-info ul li {
+            margin-bottom: 5px;
+        }
+        .auth-section {
+            background: #f3f4f6;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #059669;
+        }
+        .auth-section h3 {
+            color: #1f2937;
+            margin: 0 0 10px 0;
+        }
+        .auth-section code {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="custom-header">
+        <h1>CyberTask API Documentation</h1>
+        <p>Comprehensive REST API for task and project management</p>
+    </div>
+    
+    <div style="max-width: 1200px; margin: 0 auto; padding: 0 20px;">
+        <div class="api-info">
+            <h2>🚀 Getting Started</h2>
+            <p>Welcome to the CyberTask API documentation. This interactive documentation allows you to explore and test all available endpoints.</p>
+            
+            <div class="auth-section">
+                <h3>🔐 Authentication</h3>
+                <p>Most endpoints require authentication using JWT Bearer tokens. Include your access token in the Authorization header:</p>
+                <p><code>Authorization: Bearer your-jwt-token-here</code></p>
+                <p>Use the <strong>Authorize</strong> button below to set your token for all requests.</p>
+            </div>
+
+            <h2>📋 Key Features</h2>
+            <ul>
+                <li><strong>User Authentication:</strong> JWT-based authentication with refresh tokens</li>
+                <li><strong>Task Management:</strong> Create, update, assign, and track tasks</li>
+                <li><strong>Project Organization:</strong> Group tasks into projects with team collaboration</li>
+                <li><strong>Comments & Discussion:</strong> Add comments to tasks for team communication</li>
+                <li><strong>Task Dependencies:</strong> Create task dependencies for complex workflows</li>
+                <li><strong>Real-time Notifications:</strong> Get notified about task updates and assignments</li>
+                <li><strong>Role-based Access:</strong> Different permission levels for users, managers, and admins</li>
+            </ul>
+
+            <h2>🔧 Base URLs</h2>
+            <ul>
+                <li><strong>Development:</strong> <code>http://localhost:3000/api</code></li>
+                <li><strong>Production:</strong> <code>https://api.cybertask.com</code></li>
+            </ul>
+
+            <h2>📊 Response Format</h2>
+            <p>All API responses follow a consistent format:</p>
+            <pre style="background: #f3f4f6; padding: 15px; border-radius: 4px; overflow-x: auto;"><code>{
+  "success": true,
+  "message": "Operation completed successfully",
+  "data": { ... },
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 5
+  }
+}</code></pre>
+
+            <h2>⚡ Rate Limiting</h2>
+            <p>API requests are rate limited to ensure fair usage and system stability. Check response headers for rate limit information.</p>
+
+            <h2>🐛 Error Handling</h2>
+            <p>Errors are returned with appropriate HTTP status codes and descriptive error messages:</p>
+            <ul>
+                <li><strong>400:</strong> Bad Request - Validation errors</li>
+                <li><strong>401:</strong> Unauthorized - Authentication required</li>
+                <li><strong>403:</strong> Forbidden - Insufficient permissions</li>
+                <li><strong>404:</strong> Not Found - Resource not found</li>
+                <li><strong>429:</strong> Too Many Requests - Rate limit exceeded</li>
+                <li><strong>500:</strong> Internal Server Error - Server-side errors</li>
+            </ul>
+        </div>
+    </div>
+
+    <div id="swagger-ui"></div>
+
+    <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-bundle.js"></script>
+    <script src="https://unpkg.com/swagger-ui-dist@4.15.5/swagger-ui-standalone-preset.js"></script>
+    <script>
+        window.onload = function() {
+            // Begin Swagger UI call region
+            const ui = SwaggerUIBundle({
+                url: './openapi.yaml',
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+                tryItOutEnabled: true,
+                requestInterceptor: function(request) {
+                    // Log requests for debugging
+                    console.log('API Request:', request);
+                    return request;
+                },
+                responseInterceptor: function(response) {
+                    // Log responses for debugging
+                    console.log('API Response:', response);
+                    return response;
+                },
+                onComplete: function() {
+                    console.log('CyberTask API documentation loaded successfully');
+                },
+                docExpansion: "list",
+                filter: true,
+                showRequestHeaders: true,
+                showCommonExtensions: true,
+                defaultModelsExpandDepth: 2,
+                defaultModelExpandDepth: 2,
+                displayOperationId: true,
+                displayRequestDuration: true,
+                supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
+                validatorUrl: null
+            });
+
+            // Custom authorization handling
+            ui.preauthorizeApiKey = function(apiKeyAuth, value) {
+                const authWrapper = document.querySelector('.auth-wrapper');
+                if (authWrapper) {
+                    authWrapper.style.display = value ? 'block' : 'none';
+                }
+            };
+            // End Swagger UI call region
+
+            // Add custom styling after UI loads
+            setTimeout(function() {
+                // Hide Swagger UI branding
+                const topbar = document.querySelector('.swagger-ui .topbar');
+                if (topbar) {
+                    topbar.style.display = 'none';
+                }
+
+                // Customize info section
+                const info = document.querySelector('.swagger-ui .info');
+                if (info) {
+                    info.style.display = 'none';
+                }
+
+                // Add custom footer
+                const wrapper = document.querySelector('#swagger-ui');
+                if (wrapper) {
+                    const footer = document.createElement('div');
+                    footer.innerHTML = `
+                        <div style="background: #1f2937; color: white; text-align: center; padding: 30px; margin-top: 50px;">
+                            <h3>Need Help?</h3>
+                            <p>For additional support, please contact our development team:</p>
+                            <p>📧 Email: <a href="mailto:support@cybertask.com" style="color: #60a5fa;">support@cybertask.com</a></p>
+                            <p>📖 Documentation: <a href="#" style="color: #60a5fa;">docs.cybertask.com</a></p>
+                            <p style="margin-top: 20px; opacity: 0.7;">© 2023 CyberTask. Built with ❤️ for productivity.</p>
+                        </div>
+                    `;
+                    wrapper.appendChild(footer);
+                }
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

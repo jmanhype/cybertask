@@ -1,0 +1,219 @@
+// Prisma Schema for CyberTask Backend
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model with authentication and profile
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  firstName   String?
+  lastName    String?
+  bio         String?
+  phone       String?
+  timezone    String?
+  password    String
+  isActive    Boolean  @default(true)
+  emailVerified  Boolean  @default(false)
+  emailVerificationToken String?
+  passwordResetToken     String?
+  passwordResetExpiry    DateTime?
+  role        UserRole @default(USER)
+  
+  // Authentication tokens
+  refreshTokens RefreshToken[]
+  
+  // Task relationships
+  createdTasks    Task[]   @relation("TaskCreator")
+  assignedTasks   Task[]   @relation("TaskAssignee")
+  
+  // Project relationships  
+  ownedProjects   Project[] @relation("ProjectOwner")
+  projectMemberships  ProjectMember[]
+  
+  // Comments
+  taskComments    TaskComment[]
+  
+  // Notifications
+  notifications   Notification[]
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  lastLoginAt DateTime?
+  
+  @@map("users")
+}
+
+// Refresh token model for JWT authentication
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@map("refresh_tokens")
+}
+
+// Task model with comprehensive task management
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  priority    Priority   @default(MEDIUM)
+  tags        String?    // JSON field for tags array
+  
+  // Relationships
+  createdById String
+  createdBy   User   @relation("TaskCreator", fields: [createdById], references: [id])
+  assignedToId  String?
+  assignedTo    User?  @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id])
+  
+  // Task relationships
+  comments    TaskComment[]
+  dependencies TaskDependency[] @relation("TaskDependency")
+  dependentTasks TaskDependency[] @relation("DependentTask")
+  
+  // Time tracking
+  estimatedHours  Float?
+  actualHours     Float?
+  dueDate         DateTime?
+  completedAt     DateTime?
+  archivedAt      DateTime?
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("tasks")
+}
+
+// Project model for organizing tasks
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  priority    Priority      @default(MEDIUM)
+  
+  // Relationships
+  ownerId String
+  owner   User   @relation("ProjectOwner", fields: [ownerId], references: [id])
+  
+  tasks     Task[]
+  members   ProjectMember[]
+  
+  // Timestamps
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("projects")
+}
+
+// Project membership model
+model ProjectMember {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  joinedAt  DateTime    @default(now())
+  
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+// Task comment model
+model TaskComment {
+  id      String @id @default(cuid())
+  content String
+  
+  // Relationships
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id])
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("task_comments")
+}
+
+// Task dependency model
+model TaskDependency {
+  id          String @id @default(cuid())
+  taskId      String
+  task        Task   @relation("TaskDependency", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnId String
+  dependsOn   Task   @relation("DependentTask", fields: [dependsOnId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([taskId, dependsOnId])
+  @@map("task_dependencies")
+}
+
+// Notification model
+model Notification {
+  id      String @id @default(cuid())
+  type    String
+  title   String
+  message String
+  data    String? // JSON field for additional data
+  isRead  Boolean @default(false)
+  readAt  DateTime?
+  
+  // Relationships
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  
+  @@map("notifications")
+}
+
+
+// Enums
+enum UserRole {
+  USER
+  MANAGER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ProjectStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
