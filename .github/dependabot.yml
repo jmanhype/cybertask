@@ -1,0 +1,182 @@
+version: 2
+updates:
+  # Backend dependencies
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "@cybertask/backend-team"
+    assignees:
+      - "@cybertask/maintainers"
+    commit-message:
+      prefix: "chore(backend)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "backend"
+      - "automated"
+    ignore:
+      # Ignore major version updates for breaking change prone packages
+      - dependency-name: "express"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    groups:
+      prisma:
+        patterns:
+          - "@prisma/*"
+          - "prisma"
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/*"
+          - "ts-*"
+      testing:
+        patterns:
+          - "jest"
+          - "@types/jest"
+          - "supertest"
+          - "@types/supertest"
+          - "ts-jest"
+
+  # Frontend dependencies
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "@cybertask/frontend-team"
+    assignees:
+      - "@cybertask/maintainers"
+    commit-message:
+      prefix: "chore(frontend)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "frontend"
+      - "automated"
+    ignore:
+      # Ignore major version updates for breaking change prone packages
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
+    groups:
+      react:
+        patterns:
+          - "react"
+          - "react-*"
+          - "@types/react*"
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/*"
+          - "ts-*"
+      vite:
+        patterns:
+          - "vite"
+          - "@vitejs/*"
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@testing-library/*"
+
+  # Database dependencies
+  - package-ecosystem: "npm"
+    directory: "/database"
+    schedule:
+      interval: "monthly"
+      day: "first-monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "@cybertask/backend-team"
+    assignees:
+      - "@cybertask/maintainers"
+    commit-message:
+      prefix: "chore(database)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "database"
+      - "automated"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "first-monday"
+      time: "10:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "@cybertask/devops-team"
+    assignees:
+      - "@cybertask/maintainers"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "automated"
+    groups:
+      actions:
+        patterns:
+          - "actions/*"
+          - "github/*"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "@cybertask/devops-team"
+    assignees:
+      - "@cybertask/maintainers"
+    commit-message:
+      prefix: "chore(docker)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "backend"
+      - "automated"
+
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+    open-pull-requests-limit: 3
+    reviewers:
+      - "@cybertask/devops-team"
+    assignees:
+      - "@cybertask/maintainers"
+    commit-message:
+      prefix: "chore(docker)"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "frontend"
+      - "automated"

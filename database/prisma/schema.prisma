@@ -1,0 +1,438 @@
+// Prisma Schema for CyberTask
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [uuidOssp(map: "uuid-ossp"), pg_trgm, btree_gin]
+}
+
+// ================================
+// USERS AND AUTHENTICATION
+// ================================
+
+model User {
+  id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email             String    @unique
+  username          String    @unique @db.VarChar(50)
+  passwordHash      String    @map("password_hash")
+  firstName         String    @map("first_name") @db.VarChar(100)
+  lastName          String    @map("last_name") @db.VarChar(100)
+  avatarUrl         String?   @map("avatar_url")
+  timezone          String    @default("UTC") @db.VarChar(50)
+  locale            String    @default("en-US") @db.VarChar(10)
+  theme             String    @default("light") @db.VarChar(20)
+  emailVerified     Boolean   @default(false) @map("email_verified")
+  active            Boolean   @default(true)
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  userRoles            UserRole[]
+  oauthProviders       OAuthProvider[]
+  createdOrganizations Organization[] @relation("OrganizationCreatedBy")
+  organizationMembers  OrganizationMember[]
+  createdTeams         Team[] @relation("TeamCreatedBy")
+  teamMembers          TeamMember[]
+  createdProjects      Project[] @relation("ProjectCreatedBy")
+  assignedTasks        Task[] @relation("TaskAssignedTo")
+  createdTasks         Task[] @relation("TaskCreatedBy")
+  updatedTasks         Task[] @relation("TaskUpdatedBy")
+  taskComments         TaskComment[]
+  attachments          Attachment[]
+  timeEntries          TimeEntry[]
+  notifications        Notification[]
+  activityLogs         ActivityLog[]
+  createdWorkflows     ClaudeWorkflow[] @relation("WorkflowCreatedBy")
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String   @unique @db.VarChar(50)
+  description String?
+  permissions Json     @default("[]")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  userRoles UserRole[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  id        String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  roleId    String    @map("role_id") @db.Uuid
+  grantedBy String?   @map("granted_by") @db.Uuid
+  grantedAt DateTime  @default(now()) @map("granted_at") @db.Timestamptz
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model OAuthProvider {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  provider     String    @db.VarChar(50) // 'google', 'github', 'microsoft'
+  providerId   String    @map("provider_id")
+  accessToken  String?   @map("access_token")
+  refreshToken String?   @map("refresh_token")
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@unique([userId, provider])
+  @@map("oauth_providers")
+}
+
+// ================================
+// ORGANIZATIONS AND TEAMS
+// ================================
+
+model Organization {
+  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                  String
+  slug                  String   @unique @db.VarChar(100)
+  description           String?
+  avatarUrl             String?  @map("avatar_url")
+  websiteUrl            String?  @map("website_url")
+  settings              Json     @default("{}")
+  subscriptionTier      String   @default("free") @map("subscription_tier") @db.VarChar(20)
+  subscriptionExpiresAt DateTime? @map("subscription_expires_at") @db.Timestamptz
+  createdBy             String   @map("created_by") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  creator             User                   @relation("OrganizationCreatedBy", fields: [createdBy], references: [id])
+  members             OrganizationMember[]
+  teams               Team[]
+  projects            Project[]
+  activityLogs        ActivityLog[]
+  claudeWorkflows     ClaudeWorkflow[]
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  role           String   @default("member") @db.VarChar(20) // 'owner', 'admin', 'member'
+  joinedAt       DateTime @default(now()) @map("joined_at") @db.Timestamptz
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+}
+
+model Team {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  description    String?
+  color          String?  @db.VarChar(7) // Hex color code
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      User         @relation("TeamCreatedBy", fields: [createdBy], references: [id])
+  members      TeamMember[]
+  projects     Project[]
+
+  @@map("teams")
+}
+
+model TeamMember {
+  id       String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  teamId   String   @map("team_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  role     String   @default("member") @db.VarChar(20)
+  joinedAt DateTime @default(now()) @map("joined_at") @db.Timestamptz
+
+  // Relations
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+// ================================
+// PROJECTS
+// ================================
+
+model Project {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  teamId         String?  @map("team_id") @db.Uuid
+  name           String
+  description    String?
+  color          String?  @db.VarChar(7)
+  status         String   @default("active") @db.VarChar(20) // 'active', 'archived', 'completed'
+  priority       String   @default("medium") @db.VarChar(10) // 'low', 'medium', 'high', 'urgent'
+  startDate      DateTime? @map("start_date") @db.Date
+  endDate        DateTime? @map("end_date") @db.Date
+  estimatedHours Int?     @map("estimated_hours")
+  actualHours    Int      @default(0) @map("actual_hours")
+  settings       Json     @default("{}")
+  createdBy      String   @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  team         Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  creator      User         @relation("ProjectCreatedBy", fields: [createdBy], references: [id])
+  tasks        Task[]
+  attachments  Attachment[]
+
+  @@map("projects")
+}
+
+// ================================
+// TASKS
+// ================================
+
+model Task {
+  id                 String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  projectId          String    @map("project_id") @db.Uuid
+  parentTaskId       String?   @map("parent_task_id") @db.Uuid
+  title              String    @db.VarChar(500)
+  description        String?
+  status             String    @default("todo") @db.VarChar(20) // 'todo', 'in_progress', 'review', 'done', 'blocked'
+  priority           String    @default("medium") @db.VarChar(10) // 'low', 'medium', 'high', 'urgent'
+  difficultyScore    Int?      @map("difficulty_score")
+  storyPoints        Int?      @map("story_points")
+  
+  // Assignment
+  assignedTo         String?   @map("assigned_to") @db.Uuid
+  assignedBy         String?   @map("assigned_by") @db.Uuid
+  assignedAt         DateTime? @map("assigned_at") @db.Timestamptz
+  
+  // Dates
+  dueDate            DateTime? @map("due_date") @db.Timestamptz
+  startDate          DateTime? @map("start_date") @db.Date
+  completedAt        DateTime? @map("completed_at") @db.Timestamptz
+  
+  // Time tracking
+  estimatedHours     Decimal?  @map("estimated_hours") @db.Decimal(5, 2)
+  actualHours        Decimal   @default(0) @map("actual_hours") @db.Decimal(5, 2)
+  
+  // Labels and categories
+  labels             String[]  @default([])
+  category           String?   @db.VarChar(100)
+  
+  // AI-enhanced fields
+  aiPriorityScore    Decimal?  @map("ai_priority_score") @db.Decimal(3, 2) // AI-calculated priority (0-1)
+  aiComplexityScore  Decimal?  @map("ai_complexity_score") @db.Decimal(3, 2) // AI-calculated complexity (0-1)
+  aiInsights         Json      @default("{}") @map("ai_insights")
+  
+  // Custom fields
+  customFields       Json      @default("{}") @map("custom_fields")
+  
+  // Metadata
+  createdBy          String    @map("created_by") @db.Uuid
+  updatedBy          String?   @map("updated_by") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentTask      Task?             @relation("TaskHierarchy", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks        Task[]            @relation("TaskHierarchy")
+  assignee        User?             @relation("TaskAssignedTo", fields: [assignedTo], references: [id], onDelete: SetNull)
+  creator         User              @relation("TaskCreatedBy", fields: [createdBy], references: [id])
+  updater         User?             @relation("TaskUpdatedBy", fields: [updatedBy], references: [id])
+  dependencies    TaskDependency[]  @relation("TaskDependsOn")
+  dependents      TaskDependency[]  @relation("TaskBlocks")
+  comments        TaskComment[]
+  attachments     Attachment[]
+  timeEntries     TimeEntry[]
+
+  @@map("tasks")
+}
+
+model TaskDependency {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  taskId           String   @map("task_id") @db.Uuid
+  dependsOnTaskId  String   @map("depends_on_task_id") @db.Uuid
+  dependencyType   String   @default("blocks") @map("dependency_type") @db.VarChar(20) // 'blocks', 'relates_to', 'duplicates'
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  task        Task @relation("TaskDependsOn", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOn   Task @relation("TaskBlocks", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnTaskId])
+  @@map("task_dependencies")
+}
+
+model TaskComment {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  taskId    String   @map("task_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  content   String
+  type      String   @default("comment") @db.VarChar(20) // 'comment', 'status_change', 'assignment'
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("task_comments")
+}
+
+// ================================
+// ATTACHMENTS AND FILES
+// ================================
+
+model Attachment {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  taskId           String?  @map("task_id") @db.Uuid
+  projectId        String?  @map("project_id") @db.Uuid
+  uploadedBy       String   @map("uploaded_by") @db.Uuid
+  filename         String
+  originalFilename String   @map("original_filename")
+  mimeType         String?  @map("mime_type") @db.VarChar(100)
+  fileSize         BigInt   @map("file_size")
+  filePath         String   @map("file_path")
+  thumbnailPath    String?  @map("thumbnail_path")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  task     Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  project  Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User     @relation(fields: [uploadedBy], references: [id])
+
+  @@map("attachments")
+}
+
+// ================================
+// TIME TRACKING
+// ================================
+
+model TimeEntry {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  taskId      String   @map("task_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  description String?
+  hours       Decimal  @db.Decimal(5, 2)
+  date        DateTime @db.Date
+  billable    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("time_entries")
+}
+
+// ================================
+// NOTIFICATIONS
+// ================================
+
+model Notification {
+  id        String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  type      String    @db.VarChar(50)
+  title     String
+  content   String?
+  data      Json      @default("{}")
+  read      Boolean   @default(false)
+  readAt    DateTime? @map("read_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  groupKey  String?   @map("group_key") // For grouping related notifications
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// ================================
+// ANALYTICS AND METRICS
+// ================================
+
+model ActivityLog {
+  id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId         String?   @map("user_id") @db.Uuid
+  organizationId String?   @map("organization_id") @db.Uuid
+  entityType     String    @map("entity_type") @db.VarChar(50) // 'task', 'project', 'user'
+  entityId       String?   @map("entity_id") @db.Uuid
+  action         String    @db.VarChar(50) // 'created', 'updated', 'deleted', 'completed'
+  details        Json      @default("{}")
+  ipAddress      String?   @map("ip_address")
+  userAgent      String?   @map("user_agent")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("activity_logs")
+}
+
+// ================================
+// AI AND CLAUDE FLOW INTEGRATION
+// ================================
+
+model AiAnalysis {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  entityType       String   @map("entity_type") @db.VarChar(50) // 'task', 'project', 'workflow'
+  entityId         String   @map("entity_id") @db.Uuid
+  analysisType     String   @map("analysis_type") @db.VarChar(50) // 'priority', 'complexity', 'optimization'
+  inputData        Json     @map("input_data")
+  outputData       Json     @map("output_data")
+  confidenceScore  Decimal? @map("confidence_score") @db.Decimal(3, 2)
+  modelVersion     String?  @map("model_version") @db.VarChar(50)
+  processingTimeMs Int?     @map("processing_time_ms")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("ai_analyses")
+}
+
+model ClaudeWorkflow {
+  id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  name              String
+  description       String?
+  workflowConfig    Json      @map("workflow_config")
+  triggerConditions Json      @default("{}") @map("trigger_conditions")
+  active            Boolean   @default(true)
+  executionCount    Int       @default(0) @map("execution_count")
+  lastExecutedAt    DateTime? @map("last_executed_at") @db.Timestamptz
+  createdBy         String    @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      User         @relation("WorkflowCreatedBy", fields: [createdBy], references: [id])
+
+  @@map("claude_workflows")
+}

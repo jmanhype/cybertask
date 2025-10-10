@@ -1,0 +1,68 @@
+# CyberTask Code Owners
+# This file defines who is responsible for code in this repository.
+# Order matters - the last matching pattern takes precedence.
+
+# Global owners (fallback)
+* @jmanhype @cybertask/maintainers
+
+# CI/CD and Infrastructure
+/.github/ @cybertask/devops-team @cybertask/maintainers
+/docker-compose*.yml @cybertask/devops-team
+/Dockerfile @cybertask/devops-team
+/deployment/ @cybertask/devops-team @cybertask/maintainers
+/.env.example @cybertask/devops-team
+/scripts/ @cybertask/devops-team
+
+# Backend
+/backend/ @cybertask/backend-team @cybertask/maintainers
+/backend/src/controllers/ @cybertask/backend-team
+/backend/src/models/ @cybertask/backend-team
+/backend/src/routes/ @cybertask/backend-team
+/backend/src/middleware/ @cybertask/backend-team
+/backend/tests/ @cybertask/backend-team
+/backend/prisma/ @cybertask/backend-team
+/backend/Dockerfile @cybertask/backend-team @cybertask/devops-team
+
+# Frontend
+/frontend/ @cybertask/frontend-team @cybertask/maintainers
+/frontend/src/components/ @cybertask/frontend-team
+/frontend/src/pages/ @cybertask/frontend-team
+/frontend/src/services/ @cybertask/frontend-team
+/frontend/src/store/ @cybertask/frontend-team
+/frontend/src/__tests__/ @cybertask/frontend-team
+/frontend/Dockerfile @cybertask/frontend-team @cybertask/devops-team
+
+# Database
+/database/ @cybertask/backend-team @cybertask/maintainers
+/database/migrations/ @cybertask/backend-team
+/database/seeds/ @cybertask/backend-team
+/database/schema.sql @cybertask/backend-team
+
+# Documentation
+/docs/ @cybertask/maintainers
+/README.md @cybertask/maintainers
+/CONTRIBUTING.md @cybertask/maintainers
+/CHANGELOG.md @cybertask/maintainers
+
+# Security-sensitive files
+/docs/deployment/ @cybertask/devops-team @cybertask/security-team
+/docs/security/ @cybertask/security-team @cybertask/maintainers
+/.github/workflows/security.yml @cybertask/security-team @cybertask/devops-team
+/.github/dependabot.yml @cybertask/security-team @cybertask/devops-team
+
+# Testing
+/e2e/ @cybertask/qa-team @cybertask/maintainers
+/tests/ @cybertask/qa-team
+
+# Package files
+package.json @cybertask/maintainers
+package-lock.json @cybertask/maintainers
+/backend/package.json @cybertask/backend-team @cybertask/maintainers
+/frontend/package.json @cybertask/frontend-team @cybertask/maintainers
+
+# Configuration files
+/backend/tsconfig.json @cybertask/backend-team
+/frontend/tsconfig.json @cybertask/frontend-team
+/backend/jest.config.js @cybertask/backend-team
+/frontend/vite.config.ts @cybertask/frontend-team
+/frontend/tailwind.config.js @cybertask/frontend-team

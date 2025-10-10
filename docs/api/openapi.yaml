@@ -1,0 +1,1760 @@
+openapi: 3.0.0
+info:
+  title: CyberTask API
+  version: 1.0.0
+  description: |
+    A comprehensive task and project management API built with Express, TypeScript, and Prisma.
+    
+    ## Features
+    - User authentication with JWT tokens
+    - Task and project management
+    - Real-time notifications
+    - Team collaboration
+    - Comment system
+    - Task dependencies
+    
+    ## Authentication
+    Most endpoints require authentication via Bearer token in the Authorization header.
+    
+    ## Rate Limiting
+    API requests are rate limited to prevent abuse.
+    
+  contact:
+    name: CyberTask API Support
+    email: support@cybertask.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+  - url: https://api.cybertask.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication and authorization
+  - name: Users
+    description: User profile management
+  - name: Tasks
+    description: Task management operations
+  - name: Projects
+    description: Project management operations
+  - name: Notifications
+    description: User notification system
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: cuid
+          description: Unique user identifier
+        email:
+          type: string
+          format: email
+          description: User's email address
+        firstName:
+          type: string
+          nullable: true
+          description: User's first name
+        lastName:
+          type: string
+          nullable: true
+          description: User's last name
+        bio:
+          type: string
+          nullable: true
+          description: User's biography
+        phone:
+          type: string
+          nullable: true
+          description: User's phone number
+        timezone:
+          type: string
+          nullable: true
+          description: User's timezone
+        role:
+          type: string
+          enum: [USER, MANAGER, ADMIN, SUPER_ADMIN]
+          description: User's role in the system
+        isActive:
+          type: boolean
+          description: Whether user account is active
+        emailVerified:
+          type: boolean
+          description: Whether email is verified
+        createdAt:
+          type: string
+          format: date-time
+          description: Account creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last profile update timestamp
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last login timestamp
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: cuid
+          description: Unique task identifier
+        title:
+          type: string
+          description: Task title
+        description:
+          type: string
+          nullable: true
+          description: Task description
+        status:
+          type: string
+          enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE]
+          description: Current task status
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Task priority level
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Task tags for categorization
+        createdById:
+          type: string
+          description: ID of user who created the task
+        createdBy:
+          $ref: '#/components/schemas/User'
+        assignedToId:
+          type: string
+          nullable: true
+          description: ID of assigned user
+        assignedTo:
+          $ref: '#/components/schemas/User'
+          nullable: true
+        projectId:
+          type: string
+          description: ID of associated project
+        project:
+          $ref: '#/components/schemas/Project'
+        estimatedHours:
+          type: number
+          format: float
+          nullable: true
+          description: Estimated hours to complete
+        actualHours:
+          type: number
+          format: float
+          nullable: true
+          description: Actual hours spent
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Task due date
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Task completion timestamp
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Task archive timestamp
+        createdAt:
+          type: string
+          format: date-time
+          description: Task creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        comments:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskComment'
+          description: Task comments
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: cuid
+          description: Unique project identifier
+        name:
+          type: string
+          description: Project name
+        description:
+          type: string
+          nullable: true
+          description: Project description
+        status:
+          type: string
+          enum: [ACTIVE, COMPLETED, ARCHIVED]
+          description: Project status
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Project priority
+        ownerId:
+          type: string
+          description: Project owner user ID
+        owner:
+          $ref: '#/components/schemas/User'
+        startDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Project start date
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Project end date
+        createdAt:
+          type: string
+          format: date-time
+          description: Project creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+          description: Project tasks
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectMember'
+          description: Project members
+
+    ProjectMember:
+      type: object
+      properties:
+        id:
+          type: string
+          format: cuid
+          description: Membership identifier
+        userId:
+          type: string
+          description: Member user ID
+        user:
+          $ref: '#/components/schemas/User'
+        projectId:
+          type: string
+          description: Project ID
+        joinedAt:
+          type: string
+          format: date-time
+          description: Membership start date
+
+    TaskComment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: cuid
+          description: Comment identifier
+        content:
+          type: string
+          description: Comment content
+        taskId:
+          type: string
+          description: Associated task ID
+        authorId:
+          type: string
+          description: Comment author ID
+        author:
+          $ref: '#/components/schemas/User'
+        createdAt:
+          type: string
+          format: date-time
+          description: Comment creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: cuid
+          description: Notification identifier
+        type:
+          type: string
+          description: Notification type
+        title:
+          type: string
+          description: Notification title
+        message:
+          type: string
+          description: Notification message
+        data:
+          type: object
+          nullable: true
+          description: Additional notification data
+        isRead:
+          type: boolean
+          description: Whether notification is read
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Read timestamp
+        userId:
+          type: string
+          description: Recipient user ID
+        createdAt:
+          type: string
+          format: date-time
+          description: Notification creation timestamp
+
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: Whether request was successful
+        message:
+          type: string
+          description: Response message
+        data:
+          type: object
+          nullable: true
+          description: Response data
+        error:
+          type: string
+          nullable: true
+          description: Error message if failed
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          nullable: true
+          description: Validation errors
+        meta:
+          type: object
+          nullable: true
+          properties:
+            total:
+              type: integer
+              description: Total count of items
+            page:
+              type: integer
+              description: Current page number
+            limit:
+              type: integer
+              description: Items per page
+            totalPages:
+              type: integer
+              description: Total number of pages
+
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+          description: Field that failed validation
+        message:
+          type: string
+          description: Validation error message
+        value:
+          type: string
+          nullable: true
+          description: Invalid value
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - confirmPassword
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+        firstName:
+          type: string
+          description: User's first name
+        lastName:
+          type: string
+          description: User's last name
+        password:
+          type: string
+          minLength: 8
+          description: User's password
+        confirmPassword:
+          type: string
+          description: Password confirmation
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+        password:
+          type: string
+          description: User's password
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            accessToken:
+              type: string
+              description: JWT access token
+            refreshToken:
+              type: string
+              description: JWT refresh token
+            expiresIn:
+              type: integer
+              description: Token expiration time in seconds
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - title
+        - projectId
+      properties:
+        title:
+          type: string
+          description: Task title
+        description:
+          type: string
+          description: Task description
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          default: MEDIUM
+          description: Task priority
+        assigneeId:
+          type: string
+          description: ID of user to assign task to
+        projectId:
+          type: string
+          description: ID of project to create task in
+        tags:
+          type: array
+          items:
+            type: string
+          description: Task tags
+        dueDate:
+          type: string
+          format: date-time
+          description: Task due date
+        estimatedHours:
+          type: number
+          format: float
+          description: Estimated hours to complete
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Task title
+        description:
+          type: string
+          description: Task description
+        status:
+          type: string
+          enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE]
+          description: Task status
+        priority:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+          description: Task priority
+        assigneeId:
+          type: string
+          description: ID of user to assign task to
+        projectId:
+          type: string
+          description: ID of project to move task to
+        tags:
+          type: array
+          items:
+            type: string
+          description: Task tags
+        dueDate:
+          type: string
+          format: date-time
+          description: Task due date
+        estimatedHours:
+          type: number
+          format: float
+          description: Estimated hours to complete
+        actualHours:
+          type: number
+          format: float
+          description: Actual hours spent
+
+    CreateProjectRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Project name
+        description:
+          type: string
+          description: Project description
+        startDate:
+          type: string
+          format: date-time
+          description: Project start date
+        endDate:
+          type: string
+          format: date-time
+          description: Project end date
+
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Project name
+        description:
+          type: string
+          description: Project description
+        status:
+          type: string
+          enum: [ACTIVE, COMPLETED, ARCHIVED]
+          description: Project status
+        startDate:
+          type: string
+          format: date-time
+          description: Project start date
+        endDate:
+          type: string
+          format: date-time
+          description: Project end date
+
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          description: Error message
+        error:
+          type: string
+          description: Error details
+
+paths:
+  # Authentication endpoints
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register new user
+      description: Create a new user account
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: "john.doe@example.com"
+              firstName: "John"
+              lastName: "Doe"
+              password: "securePassword123"
+              confirmPassword: "securePassword123"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                success: true
+                message: "User registered successfully"
+                data:
+                  user:
+                    id: "cld1234567890"
+                    email: "john.doe@example.com"
+                    firstName: "John"
+                    lastName: "Doe"
+                    role: "USER"
+                    isActive: true
+                    emailVerified: false
+                  accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expiresIn: 3600
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                success: false
+                message: "Validation failed"
+                errors:
+                  - field: "email"
+                    message: "Email is already registered"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT tokens
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "john.doe@example.com"
+              password: "securePassword123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                success: true
+                message: "Login successful"
+                data:
+                  user:
+                    id: "cld1234567890"
+                    email: "john.doe@example.com"
+                    firstName: "John"
+                    lastName: "Doe"
+                    role: "USER"
+                  accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expiresIn: 3600
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                success: false
+                message: "Invalid email or password"
+        '500':
+          description: Internal server error
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  description: Valid refresh token
+            example:
+              refreshToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+                      expiresIn:
+                        type: integer
+              example:
+                success: true
+                message: "Token refreshed successfully"
+                data:
+                  accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  expiresIn: 3600
+        '401':
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      description: Invalidate user's refresh tokens
+      operationId: logoutUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                success: true
+                message: "Logout successful"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Request password reset
+      description: Send password reset email to user
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+            example:
+              email: "john.doe@example.com"
+      responses:
+        '200':
+          description: Password reset email sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                success: true
+                message: "Password reset email sent"
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      summary: Reset password
+      description: Reset user password using reset token
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - password
+                - confirmPassword
+              properties:
+                token:
+                  type: string
+                  description: Password reset token
+                password:
+                  type: string
+                  minLength: 8
+                  description: New password
+                confirmPassword:
+                  type: string
+                  description: Confirm new password
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          description: Invalid or expired token
+
+  # User endpoints
+  /users/profile:
+    get:
+      tags:
+        - Users
+      summary: Get user profile
+      description: Get current user's profile information
+      operationId: getUserProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/User'
+              example:
+                success: true
+                message: "Profile retrieved successfully"
+                data:
+                  id: "cld1234567890"
+                  email: "john.doe@example.com"
+                  firstName: "John"
+                  lastName: "Doe"
+                  role: "USER"
+                  createdAt: "2023-01-01T00:00:00.000Z"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Users
+      summary: Update user profile
+      description: Update current user's profile information
+      operationId: updateUserProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                bio:
+                  type: string
+                phone:
+                  type: string
+                timezone:
+                  type: string
+            example:
+              firstName: "John"
+              lastName: "Doe"
+              bio: "Software developer passionate about task management"
+              phone: "+1-555-0123"
+              timezone: "America/New_York"
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/User'
+
+  # Task endpoints
+  /tasks:
+    get:
+      tags:
+        - Tasks
+      summary: Get all tasks
+      description: Retrieve all tasks for the authenticated user with optional filtering
+      operationId: getAllTasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by task status
+          required: false
+          schema:
+            type: string
+            enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE]
+        - name: priority
+          in: query
+          description: Filter by task priority
+          required: false
+          schema:
+            type: string
+            enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        - name: projectId
+          in: query
+          description: Filter by project ID
+          required: false
+          schema:
+            type: string
+        - name: assigneeId
+          in: query
+          description: Filter by assignee ID
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of tasks per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: sortBy
+          in: query
+          description: Field to sort by
+          required: false
+          schema:
+            type: string
+            enum: [createdAt, updatedAt, dueDate, priority, title]
+            default: createdAt
+        - name: sortOrder
+          in: query
+          description: Sort order
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Tasks retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  meta:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      totalPages:
+                        type: integer
+              example:
+                success: true
+                message: "Tasks retrieved successfully"
+                data:
+                  - id: "cld1234567890"
+                    title: "Implement user authentication"
+                    description: "Add JWT-based authentication to the API"
+                    status: "IN_PROGRESS"
+                    priority: "HIGH"
+                    projectId: "cld0987654321"
+                    createdAt: "2023-01-01T00:00:00.000Z"
+                meta:
+                  total: 50
+                  page: 1
+                  limit: 20
+                  totalPages: 3
+        '401':
+          description: Unauthorized
+
+    post:
+      tags:
+        - Tasks
+      summary: Create new task
+      description: Create a new task in a project
+      operationId: createTask
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+            example:
+              title: "Implement user authentication"
+              description: "Add JWT-based authentication to the API"
+              priority: "HIGH"
+              projectId: "cld0987654321"
+              assigneeId: "cld1234567890"
+              dueDate: "2023-12-31T23:59:59.000Z"
+              estimatedHours: 8.5
+              tags: ["auth", "security", "api"]
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Task'
+              example:
+                success: true
+                message: "Task created successfully"
+                data:
+                  id: "cld1234567890"
+                  title: "Implement user authentication"
+                  description: "Add JWT-based authentication to the API"
+                  status: "TODO"
+                  priority: "HIGH"
+                  projectId: "cld0987654321"
+                  createdAt: "2023-01-01T00:00:00.000Z"
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+
+  /tasks/{taskId}:
+    get:
+      tags:
+        - Tasks
+      summary: Get task by ID
+      description: Retrieve a specific task by its ID
+      operationId: getTaskById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          description: Task ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      responses:
+        '200':
+          description: Task retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+        '401':
+          description: Unauthorized
+
+    put:
+      tags:
+        - Tasks
+      summary: Update task
+      description: Update an existing task
+      operationId: updateTask
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          description: Task ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+            example:
+              title: "Implement user authentication (Updated)"
+              status: "IN_PROGRESS"
+              priority: "CRITICAL"
+              actualHours: 4.5
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Task'
+        '400':
+          description: Validation error
+        '404':
+          description: Task not found
+        '401':
+          description: Unauthorized
+
+    delete:
+      tags:
+        - Tasks
+      summary: Delete task
+      description: Delete a task permanently
+      operationId: deleteTask
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          description: Task ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      responses:
+        '200':
+          description: Task deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              example:
+                success: true
+                message: "Task deleted successfully"
+        '404':
+          description: Task not found
+        '401':
+          description: Unauthorized
+
+  /tasks/{taskId}/comments:
+    get:
+      tags:
+        - Tasks
+      summary: Get task comments
+      description: Retrieve all comments for a specific task
+      operationId: getTaskComments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          description: Task ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      responses:
+        '200':
+          description: Comments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskComment'
+        '404':
+          description: Task not found
+        '401':
+          description: Unauthorized
+
+    post:
+      tags:
+        - Tasks
+      summary: Add task comment
+      description: Add a new comment to a task
+      operationId: addTaskComment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: taskId
+          in: path
+          description: Task ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  description: Comment content
+            example:
+              content: "I've started working on this task. Will update progress soon."
+      responses:
+        '201':
+          description: Comment added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/TaskComment'
+        '400':
+          description: Validation error
+        '404':
+          description: Task not found
+        '401':
+          description: Unauthorized
+
+  # Project endpoints
+  /projects:
+    get:
+      tags:
+        - Projects
+      summary: Get all projects
+      description: Retrieve all projects for the authenticated user
+      operationId: getAllProjects
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by project status
+          required: false
+          schema:
+            type: string
+            enum: [ACTIVE, COMPLETED, ARCHIVED]
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of projects per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+                  meta:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      totalPages:
+                        type: integer
+        '401':
+          description: Unauthorized
+
+    post:
+      tags:
+        - Projects
+      summary: Create new project
+      description: Create a new project
+      operationId: createProject
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+            example:
+              name: "CyberTask Mobile App"
+              description: "Mobile application for task management"
+              startDate: "2023-01-01T00:00:00.000Z"
+              endDate: "2023-12-31T23:59:59.000Z"
+      responses:
+        '201':
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Project'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+
+  /projects/{projectId}:
+    get:
+      tags:
+        - Projects
+      summary: Get project by ID
+      description: Retrieve a specific project by its ID
+      operationId: getProjectById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          description: Project ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      responses:
+        '200':
+          description: Project retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Project'
+        '404':
+          description: Project not found
+        '401':
+          description: Unauthorized
+
+    put:
+      tags:
+        - Projects
+      summary: Update project
+      description: Update an existing project
+      operationId: updateProject
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          description: Project ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+      responses:
+        '200':
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/Project'
+        '400':
+          description: Validation error
+        '404':
+          description: Project not found
+        '401':
+          description: Unauthorized
+
+    delete:
+      tags:
+        - Projects
+      summary: Delete project
+      description: Delete a project permanently
+      operationId: deleteProject
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          description: Project ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      responses:
+        '200':
+          description: Project deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Project not found
+        '401':
+          description: Unauthorized
+
+  /projects/{projectId}/members:
+    get:
+      tags:
+        - Projects
+      summary: Get project members
+      description: Retrieve all members of a project
+      operationId: getProjectMembers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          description: Project ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      responses:
+        '200':
+          description: Project members retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProjectMember'
+        '404':
+          description: Project not found
+        '401':
+          description: Unauthorized
+
+    post:
+      tags:
+        - Projects
+      summary: Add project member
+      description: Add a user to a project
+      operationId: addProjectMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          description: Project ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - userId
+              properties:
+                userId:
+                  type: string
+                  description: User ID to add as member
+      responses:
+        '201':
+          description: Member added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/ProjectMember'
+        '400':
+          description: Validation error
+        '404':
+          description: Project or user not found
+        '409':
+          description: User is already a member
+        '401':
+          description: Unauthorized
+
+  /projects/{projectId}/tasks:
+    get:
+      tags:
+        - Projects
+      summary: Get project tasks
+      description: Retrieve all tasks for a specific project
+      operationId: getProjectTasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: projectId
+          in: path
+          description: Project ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+        - name: status
+          in: query
+          description: Filter by task status
+          required: false
+          schema:
+            type: string
+            enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE]
+      responses:
+        '200':
+          description: Project tasks retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+        '404':
+          description: Project not found
+        '401':
+          description: Unauthorized
+
+  # Notification endpoints
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: Get user notifications
+      description: Retrieve all notifications for the authenticated user
+      operationId: getUserNotifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: isRead
+          in: query
+          description: Filter by read status
+          required: false
+          schema:
+            type: boolean
+        - name: type
+          in: query
+          description: Filter by notification type
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of notifications per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Notifications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+                  meta:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      page:
+                        type: integer
+                      limit:
+                        type: integer
+                      totalPages:
+                        type: integer
+        '401':
+          description: Unauthorized
+
+  /notifications/{notificationId}/read:
+    post:
+      tags:
+        - Notifications
+      summary: Mark notification as read
+      description: Mark a specific notification as read
+      operationId: markNotificationAsRead
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          description: Notification ID
+          required: true
+          schema:
+            type: string
+            format: cuid
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Notification not found
+        '401':
+          description: Unauthorized
+
+  /notifications/mark-all-read:
+    post:
+      tags:
+        - Notifications
+      summary: Mark all notifications as read
+      description: Mark all user notifications as read
+      operationId: markAllNotificationsAsRead
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '401':
+          description: Unauthorized

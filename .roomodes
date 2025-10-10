@@ -1,0 +1,43 @@
+# SPARC Development Modes Configuration
+# Cybernetic Platform - CyberTask Project
+
+modes:
+  - name: test
+    description: "Comprehensive test suite generation"
+    phases:
+      - tdd
+      - integration
+      - e2e
+      - performance
+    
+  - name: backend
+    description: "Backend development with Node.js/Express"
+    phases:
+      - architect
+      - code
+      - test
+      - optimize
+    
+  - name: frontend
+    description: "Frontend development with React/TypeScript"
+    phases:
+      - design
+      - implement
+      - test
+      - refactor
+    
+  - name: full-stack
+    description: "Complete full-stack development"
+    phases:
+      - spec
+      - architect
+      - backend
+      - frontend
+      - integration
+      - test
+      - deploy
+
+default_mode: test
+parallel_execution: true
+max_workers: 4
+use_orchestrator: true

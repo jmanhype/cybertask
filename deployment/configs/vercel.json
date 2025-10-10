@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "name": "cybertask-frontend",
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "VITE_API_URL": "@vite_api_url",
+    "VITE_WS_URL": "@vite_ws_url",
+    "VITE_APP_NAME": "CyberTask",
+    "VITE_APP_VERSION": "1.0.0"
+  },
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/dist",
+  "installCommand": "cd frontend && npm install",
+  "devCommand": "cd frontend && npm run dev",
+  "framework": "vite",
+  "public": false,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://cybertask-backend.railway.app/api/$1"
+    }
+  ]
+}

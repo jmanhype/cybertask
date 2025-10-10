@@ -1,0 +1,94 @@
+{
+  "name": "cybertask",
+  "version": "1.0.0",
+  "description": "AI-Powered Task Management Platform - Production Ready",
+  "private": true,
+  "author": "CyberTask Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jmanhype/cybertask.git"
+  },
+  "homepage": "https://cybertask.vercel.app",
+  "keywords": [
+    "task-management",
+    "ai-powered",
+    "react",
+    "nodejs",
+    "postgresql",
+    "typescript",
+    "production-ready"
+  ],
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "test": "npm run test:backend && npm run test:frontend",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "test:coverage": "npm run test:coverage:backend && npm run test:coverage:frontend",
+    "test:coverage:backend": "cd backend && npm run test:coverage",
+    "test:coverage:frontend": "cd frontend && npm run test:coverage",
+    "lint": "npm run lint:backend && npm run lint:frontend",
+    "lint:backend": "cd backend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint",
+    "typecheck": "npm run typecheck:backend && npm run typecheck:frontend",
+    "typecheck:backend": "cd backend && npm run typecheck",
+    "typecheck:frontend": "cd frontend && npm run typecheck",
+    "deploy:production": "deployment/scripts/deploy.sh",
+    "validate:production": "node production/validation/api-validation.js",
+    "benchmark:production": "node production/benchmarks/performance-test.js",
+    "security:audit": "npm audit --audit-level moderate",
+    "db:migrate": "cd backend && npx prisma migrate deploy",
+    "db:seed": "cd backend && npx prisma db seed",
+    "db:studio": "cd backend && npx prisma studio",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "clean": "rm -rf node_modules frontend/node_modules backend/node_modules frontend/dist backend/dist",
+    "docker:build": "docker build -t cybertask-backend ./backend && docker build -t cybertask-frontend ./frontend",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "production": {
+    "frontend": {
+      "url": "https://cybertask.vercel.app",
+      "platform": "Vercel",
+      "build_command": "npm run build",
+      "output_directory": "dist"
+    },
+    "backend": {
+      "url": "https://cybertask-backend.railway.app",
+      "platform": "Railway",
+      "build_command": "npm run build",
+      "start_command": "npm start"
+    },
+    "database": {
+      "provider": "Railway PostgreSQL",
+      "ssl": true,
+      "migrations": "automatic"
+    }
+  },
+  "demo": {
+    "email": "demo@cybertask.com",
+    "password": "Demo123!",
+    "features": [
+      "Sample projects and tasks",
+      "Real-time collaboration demo",
+      "Authentication flow",
+      "Task management operations"
+    ]
+  }
+}

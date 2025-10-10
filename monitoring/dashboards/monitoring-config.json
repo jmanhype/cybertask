@@ -1,0 +1,234 @@
+{
+  "name": "CyberTask Production Monitoring",
+  "version": "1.0.0",
+  "dashboards": {
+    "overview": {
+      "title": "CyberTask Overview",
+      "panels": [
+        {
+          "title": "System Health",
+          "type": "stat",
+          "metrics": [
+            {
+              "name": "uptime",
+              "query": "up{job=\"cybertask-backend\"}",
+              "unit": "percent"
+            },
+            {
+              "name": "response_time",
+              "query": "http_request_duration_seconds{job=\"cybertask-backend\"}",
+              "unit": "ms"
+            }
+          ]
+        },
+        {
+          "title": "Request Rate",
+          "type": "graph",
+          "metrics": [
+            {
+              "name": "requests_per_second",
+              "query": "rate(http_requests_total{job=\"cybertask-backend\"}[5m])",
+              "unit": "req/s"
+            }
+          ]
+        },
+        {
+          "title": "Error Rate",
+          "type": "graph",
+          "metrics": [
+            {
+              "name": "error_rate",
+              "query": "rate(http_requests_total{job=\"cybertask-backend\",status=~\"5..\"}[5m])",
+              "unit": "percent"
+            }
+          ]
+        }
+      ]
+    },
+    "performance": {
+      "title": "Performance Metrics",
+      "panels": [
+        {
+          "title": "Response Time Distribution",
+          "type": "heatmap",
+          "metrics": [
+            {
+              "name": "response_time_histogram",
+              "query": "http_request_duration_seconds_bucket{job=\"cybertask-backend\"}",
+              "unit": "ms"
+            }
+          ]
+        },
+        {
+          "title": "Database Performance",
+          "type": "graph",
+          "metrics": [
+            {
+              "name": "db_query_time",
+              "query": "db_query_duration_seconds{job=\"cybertask-backend\"}",
+              "unit": "ms"
+            },
+            {
+              "name": "db_connections",
+              "query": "db_connections_active{job=\"cybertask-backend\"}",
+              "unit": "connections"
+            }
+          ]
+        },
+        {
+          "title": "Memory Usage",
+          "type": "graph",
+          "metrics": [
+            {
+              "name": "memory_usage",
+              "query": "process_resident_memory_bytes{job=\"cybertask-backend\"}",
+              "unit": "bytes"
+            }
+          ]
+        }
+      ]
+    },
+    "business": {
+      "title": "Business Metrics",
+      "panels": [
+        {
+          "title": "Active Users",
+          "type": "stat",
+          "metrics": [
+            {
+              "name": "active_users_1h",
+              "query": "active_users{job=\"cybertask-backend\",timerange=\"1h\"}",
+              "unit": "users"
+            },
+            {
+              "name": "active_users_24h",
+              "query": "active_users{job=\"cybertask-backend\",timerange=\"24h\"}",
+              "unit": "users"
+            }
+          ]
+        },
+        {
+          "title": "Task Creation Rate",
+          "type": "graph",
+          "metrics": [
+            {
+              "name": "tasks_created",
+              "query": "rate(tasks_created_total{job=\"cybertask-backend\"}[5m])",
+              "unit": "tasks/min"
+            }
+          ]
+        },
+        {
+          "title": "Authentication Success Rate",
+          "type": "stat",
+          "metrics": [
+            {
+              "name": "auth_success_rate",
+              "query": "rate(auth_attempts_total{job=\"cybertask-backend\",status=\"success\"}[5m]) / rate(auth_attempts_total{job=\"cybertask-backend\"}[5m])",
+              "unit": "percent"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "alerts": [
+    {
+      "name": "High Error Rate",
+      "condition": "rate(http_requests_total{job=\"cybertask-backend\",status=~\"5..\"}[5m]) > 0.05",
+      "severity": "critical",
+      "description": "Error rate is above 5% for the last 5 minutes"
+    },
+    {
+      "name": "High Response Time",
+      "condition": "http_request_duration_seconds{job=\"cybertask-backend\",quantile=\"0.95\"} > 0.5",
+      "severity": "warning",
+      "description": "95th percentile response time is above 500ms"
+    },
+    {
+      "name": "Low Uptime",
+      "condition": "up{job=\"cybertask-backend\"} < 1",
+      "severity": "critical",
+      "description": "CyberTask backend is down"
+    },
+    {
+      "name": "High Memory Usage",
+      "condition": "process_resident_memory_bytes{job=\"cybertask-backend\"} > 512000000",
+      "severity": "warning",
+      "description": "Memory usage is above 512MB"
+    },
+    {
+      "name": "Database Connection Issues",
+      "condition": "db_connections_active{job=\"cybertask-backend\"} > 20",
+      "severity": "warning",
+      "description": "High number of database connections"
+    }
+  ],
+  "notifications": {
+    "channels": [
+      {
+        "name": "email",
+        "type": "email",
+        "config": {
+          "to": ["admin@cybertask.com"],
+          "subject": "CyberTask Alert: {{.GroupLabels.alertname}}"
+        }
+      },
+      {
+        "name": "slack",
+        "type": "slack",
+        "config": {
+          "webhook_url": "${SLACK_WEBHOOK_URL}",
+          "channel": "#cybertask-alerts",
+          "title": "CyberTask Production Alert"
+        }
+      }
+    ],
+    "routes": [
+      {
+        "match": {
+          "severity": "critical"
+        },
+        "receiver": "email",
+        "group_wait": "30s",
+        "group_interval": "5m",
+        "repeat_interval": "1h"
+      },
+      {
+        "match": {
+          "severity": "warning"
+        },
+        "receiver": "slack",
+        "group_wait": "1m",
+        "group_interval": "10m",
+        "repeat_interval": "4h"
+      }
+    ]
+  },
+  "health_checks": [
+    {
+      "name": "API Health Check",
+      "url": "${VITE_API_URL}/health",
+      "method": "GET",
+      "expected_status": 200,
+      "timeout": "5s",
+      "interval": "30s"
+    },
+    {
+      "name": "Frontend Health Check",
+      "url": "https://cybertask.vercel.app",
+      "method": "GET",
+      "expected_status": 200,
+      "timeout": "10s",
+      "interval": "1m"
+    },
+    {
+      "name": "Database Health Check",
+      "url": "${VITE_API_URL}/health/database",
+      "method": "GET",
+      "expected_status": 200,
+      "timeout": "15s",
+      "interval": "2m"
+    }
+  ]
+}

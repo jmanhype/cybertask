@@ -1,0 +1,254 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: 'Force deployment even if tests fail'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Build and push Docker images
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      backend-image: ${{ steps.meta-backend.outputs.tags }}
+      frontend-image: ${{ steps.meta-frontend.outputs.tags }}
+    
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=staging
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.meta.outputs.tags }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.service }}.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom-${{ matrix.service }}
+          path: sbom-${{ matrix.service }}.spdx.json
+
+  # Deploy to staging environment
+  deploy-staging:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: 
+      name: staging
+      url: https://cybertask-staging.yourdomain.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+      - name: Deploy to Kubernetes
+        run: |
+          # Update image tags in deployment manifests
+          sed -i "s|IMAGE_TAG|${{ github.sha }}|g" deployment/staging/backend-deployment.yml
+          sed -i "s|IMAGE_TAG|${{ github.sha }}|g" deployment/staging/frontend-deployment.yml
+          
+          # Apply Kubernetes manifests
+          kubectl apply -f deployment/staging/ -n cybertask-staging
+          
+          # Wait for rollout to complete
+          kubectl rollout status deployment/cybertask-backend -n cybertask-staging --timeout=600s
+          kubectl rollout status deployment/cybertask-frontend -n cybertask-staging --timeout=600s
+
+      - name: Run smoke tests
+        run: |
+          # Wait for services to be ready
+          sleep 30
+          
+          # Get service URLs
+          BACKEND_URL=$(kubectl get service cybertask-backend-service -n cybertask-staging -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          FRONTEND_URL=$(kubectl get service cybertask-frontend-service -n cybertask-staging -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          
+          # Run smoke tests
+          curl -f "$BACKEND_URL/health" || exit 1
+          curl -f "$FRONTEND_URL" || exit 1
+          
+          echo "✅ Staging deployment successful"
+          echo "Backend URL: $BACKEND_URL"
+          echo "Frontend URL: $FRONTEND_URL"
+
+      - name: Notify deployment status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: deployment } = await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: context.payload.deployment?.id || 0,
+              state: '${{ job.status }}' === 'success' ? 'success' : 'failure',
+              target_url: 'https://cybertask-staging.yourdomain.com',
+              description: 'Deployment to staging environment'
+            });
+
+  # Database migration for staging
+  migrate-staging:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run database migrations
+        working-directory: backend
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+
+      - name: Seed staging database
+        working-directory: backend
+        run: npx prisma db seed
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          NODE_ENV: staging
+
+  # Performance testing
+  performance-test:
+    needs: migrate-staging
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install K6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: Run performance tests
+        run: |
+          k6 run tests/performance/k6-load-test.js \
+            --env BASE_URL=https://cybertask-staging.yourdomain.com \
+            --out json=performance-results.json
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-results
+          path: performance-results.json
+
+      - name: Analyze performance results
+        run: |
+          # Extract key metrics from K6 results
+          node -e "
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('performance-results.json', 'utf8'));
+            const metrics = results.metrics;
+            
+            console.log('## Performance Test Results');
+            console.log('| Metric | Value |');
+            console.log('|--------|-------|');
+            console.log(\`| Average Response Time | \${metrics.http_req_duration?.avg || 'N/A'} ms |\`);
+            console.log(\`| 95th Percentile | \${metrics.http_req_duration?.p95 || 'N/A'} ms |\`);
+            console.log(\`| Requests per second | \${metrics.http_reqs?.rate || 'N/A'} |\`);
+            console.log(\`| Error rate | \${(metrics.http_req_failed?.rate * 100 || 0).toFixed(2)}% |\`);
+          " >> $GITHUB_STEP_SUMMARY
+
+  # Security scan of deployed environment
+  security-scan:
+    needs: migrate-staging
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run OWASP ZAP Scan
+        uses: zaproxy/action-full-scan@v0.7.0
+        with:
+          target: 'https://cybertask-staging.yourdomain.com'
+          rules_file_name: '.zap/rules.tsv'
+          cmd_options: '-a'
+
+      - name: Upload ZAP results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: zap-results
+          path: report_html.html

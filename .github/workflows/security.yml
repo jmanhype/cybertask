@@ -1,0 +1,343 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # Dependency vulnerability scanning
+  dependency-scan:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        directory: [backend, frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.directory }}
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: ${{ matrix.directory }}
+        run: |
+          npm audit --audit-level=moderate --json > audit-results-${{ matrix.directory }}.json || true
+          npm audit --audit-level=moderate
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v3
+        with:
+          name: audit-results-${{ matrix.directory }}
+          path: audit-results-${{ matrix.directory }}.json
+
+      - name: Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=medium --file=${{ matrix.directory }}/package.json
+
+  # CodeQL analysis
+  codeql-analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      matrix:
+        language: ['javascript', 'typescript']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies and build
+        run: |
+          cd backend && npm ci && npm run build
+          cd ../frontend && npm ci && npm run build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:${{matrix.language}}"
+
+  # Secrets scanning
+  secrets-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+      - name: GitLeaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # Container security scanning
+  container-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+
+    strategy:
+      matrix:
+        service: [backend, frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          load: true
+          tags: cybertask-${{ matrix.service }}:security-scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: cybertask-${{ matrix.service }}:security-scan
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.service }}.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results-${{ matrix.service }}.sarif'
+
+      - name: Run Anchore Grype scan
+        uses: anchore/scan-action@v3
+        id: grype-scan
+        with:
+          image: cybertask-${{ matrix.service }}:security-scan
+          fail-build: false
+          severity-cutoff: high
+
+      - name: Upload Anchore scan SARIF report
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: ${{ steps.grype-scan.outputs.sarif }}
+
+  # SAST (Static Application Security Testing)
+  sast-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install ESLint security plugin
+        run: |
+          cd backend && npm ci
+          cd ../frontend && npm ci
+
+      - name: Run ESLint security rules
+        run: |
+          cd backend && npx eslint . --ext .ts,.js --format json -o eslint-security-backend.json || true
+          cd ../frontend && npx eslint . --ext .ts,.tsx,.js,.jsx --format json -o eslint-security-frontend.json || true
+
+      - name: Upload ESLint results
+        uses: actions/upload-artifact@v3
+        with:
+          name: eslint-security-results
+          path: |
+            backend/eslint-security-backend.json
+            frontend/eslint-security-frontend.json
+
+      - name: Semgrep scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/security-audit
+            p/secrets
+            p/owasp-top-ten
+            p/typescript
+            p/react
+            p/express
+          publishToken: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+  # License compliance check
+  license-check:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        directory: [backend, frontend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.directory }}
+        run: npm ci
+
+      - name: Install license checker
+        run: npm install -g license-checker
+
+      - name: Check licenses
+        working-directory: ${{ matrix.directory }}
+        run: |
+          license-checker --json --out licenses-${{ matrix.directory }}.json
+          license-checker --excludePackages "GPL*,AGPL*,LGPL*" --summary
+
+      - name: Upload license results
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-check-${{ matrix.directory }}
+          path: ${{ matrix.directory }}/licenses-${{ matrix.directory }}.json
+
+  # Security summary and reporting
+  security-summary:
+    needs: [dependency-scan, codeql-analysis, secrets-scan, container-scan, sast-scan, license-check]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate security summary
+        run: |
+          echo "# 🔒 Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan Type | Status | Details |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|---------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} | Checked for vulnerable dependencies |" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL Analysis | ${{ needs.codeql-analysis.result == 'success' && '✅ Passed' || '❌ Failed' }} | Static code analysis |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secrets Scan | ${{ needs.secrets-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} | Scanned for exposed secrets |" >> $GITHUB_STEP_SUMMARY
+          echo "| Container Scan | ${{ needs.container-scan.result == 'success' && '✅ Passed' || (needs.container-scan.result == 'skipped' && '⏩ Skipped' || '❌ Failed') }} | Container vulnerability scan |" >> $GITHUB_STEP_SUMMARY
+          echo "| SAST Scan | ${{ needs.sast-scan.result == 'success' && '✅ Passed' || '❌ Failed' }} | Static application security testing |" >> $GITHUB_STEP_SUMMARY
+          echo "| License Check | ${{ needs.license-check.result == 'success' && '✅ Passed' || '❌ Failed' }} | License compliance verification |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall security score
+          PASSED_SCANS=$(echo "${{ needs.dependency-scan.result == 'success' && needs.codeql-analysis.result == 'success' && needs.secrets-scan.result == 'success' && (needs.container-scan.result == 'success' || needs.container-scan.result == 'skipped') && needs.sast-scan.result == 'success' && needs.license-check.result == 'success' }}" | grep -o true | wc -l)
+          
+          if [ "$PASSED_SCANS" -gt 0 ]; then
+            echo "## 🛡️ Overall Security Status: **GOOD**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All security scans completed successfully. No critical security issues found." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ⚠️ Overall Security Status: **NEEDS ATTENTION**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "One or more security scans failed. Please review the results and address any security issues." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review security scan results in the Security tab" >> $GITHUB_STEP_SUMMARY
+          echo "2. Address any high or critical severity findings" >> $GITHUB_STEP_SUMMARY
+          echo "3. Update dependencies to latest secure versions" >> $GITHUB_STEP_SUMMARY
+          echo "4. Verify no secrets are exposed in the codebase" >> $GITHUB_STEP_SUMMARY
+
+      - name: Create security issue if scans failed
+        if: needs.dependency-scan.result == 'failure' || needs.codeql-analysis.result == 'failure' || needs.secrets-scan.result == 'failure' || needs.container-scan.result == 'failure' || needs.sast-scan.result == 'failure' || needs.license-check.result == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 Security Scan Failures - Action Required';
+            const body = `
+            ## Security Scan Failures Detected
+            
+            One or more security scans have failed in the latest run. Please review and address the following:
+            
+            ### Failed Scans:
+            ${needs.dependency-scan.result === 'failure' ? '- ❌ Dependency Scan\n' : ''}
+            ${needs.codeql-analysis.result === 'failure' ? '- ❌ CodeQL Analysis\n' : ''}
+            ${needs.secrets-scan.result === 'failure' ? '- ❌ Secrets Scan\n' : ''}
+            ${needs.container-scan.result === 'failure' ? '- ❌ Container Scan\n' : ''}
+            ${needs.sast-scan.result === 'failure' ? '- ❌ SAST Scan\n' : ''}
+            ${needs.license-check.result === 'failure' ? '- ❌ License Check\n' : ''}
+            
+            ### Action Items:
+            1. Review the Security tab for detailed findings
+            2. Address high and critical severity issues immediately
+            3. Update vulnerable dependencies
+            4. Remove any exposed secrets
+            5. Fix license compliance issues
+            
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            `;
+            
+            // Check if issue already exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'security'
+            });
+            
+            const existingIssue = issues.data.find(issue => issue.title.includes('Security Scan Failures'));
+            
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['security', 'high-priority', 'automated']
+              });
+            }

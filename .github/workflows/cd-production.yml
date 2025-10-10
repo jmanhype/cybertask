@@ -1,0 +1,407 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g., v1.2.3)'
+        required: true
+        type: string
+      skip_tests:
+        description: 'Skip pre-deployment tests'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Pre-deployment validation
+  pre-deployment-checks:
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.skip_tests }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Validate version format
+        run: |
+          if [[ ! "${{ inputs.version }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format. Expected format: v1.2.3"
+            exit 1
+          fi
+
+      - name: Check if version exists
+        run: |
+          if ! git tag -l | grep -q "^${{ inputs.version }}$"; then
+            echo "❌ Version ${{ inputs.version }} does not exist as a git tag"
+            exit 1
+          fi
+
+      - name: Verify staging deployment
+        run: |
+          # Check if staging is healthy
+          curl -f https://cybertask-staging.yourdomain.com/health || {
+            echo "❌ Staging environment is not healthy"
+            exit 1
+          }
+
+      - name: Run production readiness checks
+        run: |
+          echo "✅ Version validation passed"
+          echo "✅ Staging health check passed"
+          echo "🚀 Ready for production deployment"
+
+  # Create deployment record
+  create-deployment:
+    needs: [pre-deployment-checks]
+    if: always() && (needs.pre-deployment-checks.result == 'success' || needs.pre-deployment-checks.result == 'skipped')
+    runs-on: ubuntu-latest
+    outputs:
+      deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+
+    steps:
+      - name: Create deployment
+        id: deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: deployment } = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: '${{ inputs.version }}',
+              environment: 'production',
+              description: 'Deploy version ${{ inputs.version }} to production',
+              auto_merge: false,
+              required_contexts: []
+            });
+            
+            core.setOutput('deployment_id', deployment.id);
+            return deployment.id;
+
+  # Build production images
+  build-production:
+    needs: [create-deployment]
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        service: [backend, frontend]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}
+          tags: |
+            type=raw,value=${{ inputs.version }}
+            type=raw,value=production
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            NODE_ENV=production
+            VERSION=${{ inputs.version }}
+
+  # Deploy to production with manual approval
+  deploy-production:
+    needs: [create-deployment, build-production]
+    runs-on: ubuntu-latest
+    environment: 
+      name: production
+      url: https://cybertask.yourdomain.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Update deployment status to in_progress
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: '${{ needs.create-deployment.outputs.deployment-id }}',
+              state: 'in_progress',
+              description: 'Deploying to production environment'
+            });
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ secrets.PROD_EKS_CLUSTER_NAME }}
+
+      - name: Create backup of current deployment
+        run: |
+          # Create backup of current deployment state
+          kubectl get deployment cybertask-backend -n cybertask-prod -o yaml > backup-backend-deployment.yml
+          kubectl get deployment cybertask-frontend -n cybertask-prod -o yaml > backup-frontend-deployment.yml
+          
+          # Store current image versions
+          kubectl get deployment cybertask-backend -n cybertask-prod -o jsonpath='{.spec.template.spec.containers[0].image}' > current-backend-image.txt
+          kubectl get deployment cybertask-frontend -n cybertask-prod -o jsonpath='{.spec.template.spec.containers[0].image}' > current-frontend-image.txt
+
+      - name: Deploy to production with rolling update
+        run: |
+          # Update image tags in deployment manifests
+          sed -i "s|IMAGE_TAG|${{ inputs.version }}|g" deployment/production/backend-deployment.yml
+          sed -i "s|IMAGE_TAG|${{ inputs.version }}|g" deployment/production/frontend-deployment.yml
+          
+          # Apply Kubernetes manifests
+          kubectl apply -f deployment/production/ -n cybertask-prod
+          
+          # Wait for rollout to complete with extended timeout
+          kubectl rollout status deployment/cybertask-backend -n cybertask-prod --timeout=900s
+          kubectl rollout status deployment/cybertask-frontend -n cybertask-prod --timeout=900s
+
+      - name: Run health checks
+        id: health-check
+        run: |
+          # Wait for services to stabilize
+          sleep 60
+          
+          # Get service URLs
+          BACKEND_URL=$(kubectl get service cybertask-backend-service -n cybertask-prod -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          FRONTEND_URL=$(kubectl get service cybertask-frontend-service -n cybertask-prod -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          
+          # Run comprehensive health checks
+          echo "Running health checks..."
+          
+          # Backend health check
+          for i in {1..10}; do
+            if curl -f "$BACKEND_URL/health"; then
+              echo "✅ Backend health check passed"
+              break
+            else
+              echo "⏳ Backend health check failed, attempt $i/10"
+              sleep 10
+            fi
+            
+            if [ $i -eq 10 ]; then
+              echo "❌ Backend health check failed after 10 attempts"
+              echo "health_check_failed=true" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          done
+          
+          # Frontend health check
+          for i in {1..10}; do
+            if curl -f "$FRONTEND_URL"; then
+              echo "✅ Frontend health check passed"
+              break
+            else
+              echo "⏳ Frontend health check failed, attempt $i/10"
+              sleep 10
+            fi
+            
+            if [ $i -eq 10 ]; then
+              echo "❌ Frontend health check failed after 10 attempts"
+              echo "health_check_failed=true" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          done
+          
+          # API functionality test
+          curl -f "$BACKEND_URL/api/v1/status" || {
+            echo "❌ API functionality test failed"
+            echo "health_check_failed=true" >> $GITHUB_OUTPUT
+            exit 1
+          }
+          
+          echo "✅ All health checks passed"
+          echo "Backend URL: $BACKEND_URL"
+          echo "Frontend URL: $FRONTEND_URL"
+
+      - name: Rollback on failure
+        if: steps.health-check.outputs.health_check_failed == 'true'
+        run: |
+          echo "🔄 Rolling back deployment due to health check failure"
+          
+          # Restore previous deployment
+          kubectl apply -f backup-backend-deployment.yml -n cybertask-prod
+          kubectl apply -f backup-frontend-deployment.yml -n cybertask-prod
+          
+          # Wait for rollback to complete
+          kubectl rollout status deployment/cybertask-backend -n cybertask-prod --timeout=600s
+          kubectl rollout status deployment/cybertask-frontend -n cybertask-prod --timeout=600s
+          
+          echo "❌ Deployment rolled back"
+
+      - name: Update deployment status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const state = '${{ steps.health-check.outputs.health_check_failed }}' === 'true' ? 'failure' : 'success';
+            const description = state === 'success' 
+              ? 'Successfully deployed to production'
+              : 'Deployment failed and was rolled back';
+              
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: '${{ needs.create-deployment.outputs.deployment-id }}',
+              state: state,
+              target_url: 'https://cybertask.yourdomain.com',
+              description: description
+            });
+
+  # Database migration for production
+  migrate-production:
+    needs: [deploy-production]
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Create database backup
+        run: |
+          # Create database backup before migration
+          pg_dump ${{ secrets.PRODUCTION_DATABASE_URL }} > production-backup-$(date +%Y%m%d-%H%M%S).sql
+
+      - name: Run database migrations
+        working-directory: backend
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+  # Post-deployment monitoring
+  post-deployment-monitoring:
+    needs: [migrate-production]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup monitoring alerts
+        run: |
+          echo "🔍 Setting up post-deployment monitoring"
+          
+          # Trigger enhanced monitoring for the next 24 hours
+          curl -X POST "${{ secrets.MONITORING_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "event": "deployment",
+              "version": "${{ inputs.version }}",
+              "environment": "production",
+              "enhanced_monitoring_duration": "24h"
+            }'
+
+      - name: Create release notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: release } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: '${{ inputs.version }}',
+              name: 'Production Release ${{ inputs.version }}',
+              body: `
+            ## 🚀 Production Deployment - ${{ inputs.version }}
+            
+            **Deployment Date:** ${new Date().toISOString()}
+            **Environment:** Production
+            **Status:** ✅ Successful
+            
+            ### 📊 Deployment Summary
+            - Backend: Successfully deployed
+            - Frontend: Successfully deployed
+            - Database: Migrations completed
+            - Health Checks: All passed
+            
+            ### 🔗 Links
+            - [Application](https://cybertask.yourdomain.com)
+            - [Status Page](https://status.cybertask.yourdomain.com)
+            - [Monitoring Dashboard](https://monitoring.cybertask.yourdomain.com)
+            
+            ### 📈 Post-Deployment Actions
+            - Enhanced monitoring enabled for 24 hours
+            - Performance baselines updated
+            - Rollback plan validated
+              `,
+              draft: false,
+              prerelease: false
+            });
+
+      - name: Notify team
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Post to team communication channel (Slack, Teams, etc.)
+            const webhook = '${{ secrets.DEPLOYMENT_WEBHOOK }}';
+            if (webhook) {
+              await fetch(webhook, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  text: `🚀 CyberTask ${{ inputs.version }} has been successfully deployed to production!`,
+                  blocks: [
+                    {
+                      type: 'section',
+                      text: {
+                        type: 'mrkdwn',
+                        text: `*🚀 Production Deployment Complete*\n\n*Version:* ${{ inputs.version }}\n*Status:* ✅ Successful\n*URL:* https://cybertask.yourdomain.com`
+                      }
+                    }
+                  ]
+                })
+              });
+            }

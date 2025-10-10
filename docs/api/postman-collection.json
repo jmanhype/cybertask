@@ -1,0 +1,1566 @@
+{
+  "info": {
+    "name": "CyberTask API",
+    "description": "Complete API collection for CyberTask - A comprehensive task and project management platform",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "projectId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "taskId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const responseJson = pm.response.json();",
+                  "    ",
+                  "    if (responseJson.success && responseJson.data) {",
+                  "        pm.collectionVariables.set('accessToken', responseJson.data.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', responseJson.data.refreshToken);",
+                  "        pm.collectionVariables.set('userId', responseJson.data.user.id);",
+                  "        ",
+                  "        pm.test('Registration successful', function () {",
+                  "            pm.expect(responseJson.success).to.be.true;",
+                  "            pm.expect(responseJson.data.user).to.have.property('id');",
+                  "            pm.expect(responseJson.data.user).to.have.property('email');",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"password\": \"securePassword123\",\n  \"confirmPassword\": \"securePassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Register a new user account and receive authentication tokens."
+          }
+        },
+        {
+          "name": "Login User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    ",
+                  "    if (responseJson.success && responseJson.data) {",
+                  "        pm.collectionVariables.set('accessToken', responseJson.data.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', responseJson.data.refreshToken);",
+                  "        pm.collectionVariables.set('userId', responseJson.data.user.id);",
+                  "        ",
+                  "        pm.test('Login successful', function () {",
+                  "            pm.expect(responseJson.success).to.be.true;",
+                  "            pm.expect(responseJson.data.user).to.have.property('id');",
+                  "            pm.expect(responseJson.data.accessToken).to.be.a('string');",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"securePassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticate user credentials and receive JWT tokens."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const responseJson = pm.response.json();",
+                  "    ",
+                  "    if (responseJson.success && responseJson.data) {",
+                  "        pm.collectionVariables.set('accessToken', responseJson.data.accessToken);",
+                  "        ",
+                  "        pm.test('Token refresh successful', function () {",
+                  "            pm.expect(responseJson.success).to.be.true;",
+                  "            pm.expect(responseJson.data.accessToken).to.be.a('string');",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Get a new access token using the refresh token."
+          }
+        },
+        {
+          "name": "Logout User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.collectionVariables.set('accessToken', '');",
+                  "    pm.collectionVariables.set('refreshToken', '');",
+                  "    pm.collectionVariables.set('userId', '');",
+                  "    ",
+                  "    pm.test('Logout successful', function () {",
+                  "        const responseJson = pm.response.json();",
+                  "        pm.expect(responseJson.success).to.be.true;",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Logout user and invalidate refresh tokens."
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            },
+            "description": "Send password reset email to user."
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"password-reset-token-from-email\",\n  \"password\": \"newSecurePassword123\",\n  \"confirmPassword\": \"newSecurePassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            },
+            "description": "Reset user password using reset token."
+          }
+        }
+      ],
+      "description": "Authentication endpoints for user registration, login, token management, and password reset."
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get User Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Profile retrieved successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('email');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "profile"
+              ]
+            },
+            "description": "Get current user's profile information."
+          }
+        },
+        {
+          "name": "Update User Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Profile updated successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.have.property('updatedAt');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"bio\": \"Software developer passionate about productivity tools\",\n  \"phone\": \"+1-555-0123\",\n  \"timezone\": \"America/New_York\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "profile"
+              ]
+            },
+            "description": "Update current user's profile information."
+          }
+        }
+      ],
+      "description": "User profile management endpoints."
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "Get All Projects",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Projects retrieved successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.be.an('array');",
+                  "    pm.expect(responseJson.meta).to.have.property('total');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects?page=1&limit=20&status=ACTIVE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "description": "Filter by project status"
+                }
+              ]
+            },
+            "description": "Retrieve all projects for the authenticated user with optional filtering."
+          }
+        },
+        {
+          "name": "Create Project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const responseJson = pm.response.json();",
+                  "    ",
+                  "    if (responseJson.success && responseJson.data) {",
+                  "        pm.collectionVariables.set('projectId', responseJson.data.id);",
+                  "        ",
+                  "        pm.test('Project created successfully', function () {",
+                  "            pm.expect(responseJson.success).to.be.true;",
+                  "            pm.expect(responseJson.data).to.have.property('id');",
+                  "            pm.expect(responseJson.data.name).to.equal('CyberTask API Integration');",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CyberTask API Integration\",\n  \"description\": \"Project for testing CyberTask API integration features\",\n  \"startDate\": \"2023-01-01T00:00:00.000Z\",\n  \"endDate\": \"2023-12-31T23:59:59.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects"
+              ]
+            },
+            "description": "Create a new project."
+          }
+        },
+        {
+          "name": "Get Project by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project retrieved successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('name');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}"
+              ]
+            },
+            "description": "Retrieve a specific project by its ID."
+          }
+        },
+        {
+          "name": "Update Project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project updated successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.have.property('updatedAt');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CyberTask API Integration (Updated)\",\n  \"description\": \"Updated project description with new requirements\",\n  \"status\": \"ACTIVE\",\n  \"endDate\": \"2024-06-30T23:59:59.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}"
+              ]
+            },
+            "description": "Update an existing project."
+          }
+        },
+        {
+          "name": "Get Project Members",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project members retrieved successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}",
+                "members"
+              ]
+            },
+            "description": "Retrieve all members of a project."
+          }
+        },
+        {
+          "name": "Add Project Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"user-id-to-add\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}",
+                "members"
+              ]
+            },
+            "description": "Add a user to a project."
+          }
+        },
+        {
+          "name": "Get Project Tasks",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project tasks retrieved successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}/tasks?status=TODO",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "TODO",
+                  "description": "Filter by task status"
+                }
+              ]
+            },
+            "description": "Retrieve all tasks for a specific project."
+          }
+        },
+        {
+          "name": "Delete Project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Project deleted successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/projects/{{projectId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "projects",
+                "{{projectId}}"
+              ]
+            },
+            "description": "Delete a project permanently."
+          }
+        }
+      ],
+      "description": "Project management endpoints for creating, updating, and managing projects."
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "Get All Tasks",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Tasks retrieved successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.be.an('array');",
+                  "    pm.expect(responseJson.meta).to.have.property('total');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tasks?page=1&limit=10&status=TODO&priority=HIGH&sortBy=dueDate&sortOrder=asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "status",
+                  "value": "TODO",
+                  "description": "Filter by task status"
+                },
+                {
+                  "key": "priority",
+                  "value": "HIGH",
+                  "description": "Filter by task priority"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "dueDate",
+                  "description": "Sort by field"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "asc",
+                  "description": "Sort order"
+                }
+              ]
+            },
+            "description": "Retrieve all tasks for the authenticated user with filtering and pagination."
+          }
+        },
+        {
+          "name": "Create Task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const responseJson = pm.response.json();",
+                  "    ",
+                  "    if (responseJson.success && responseJson.data) {",
+                  "        pm.collectionVariables.set('taskId', responseJson.data.id);",
+                  "        ",
+                  "        pm.test('Task created successfully', function () {",
+                  "            pm.expect(responseJson.success).to.be.true;",
+                  "            pm.expect(responseJson.data).to.have.property('id');",
+                  "            pm.expect(responseJson.data.title).to.equal('Implement user authentication');",
+                  "            pm.expect(responseJson.data.status).to.equal('TODO');",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Implement user authentication\",\n  \"description\": \"Add JWT-based authentication to the API endpoints\",\n  \"priority\": \"HIGH\",\n  \"projectId\": \"{{projectId}}\",\n  \"dueDate\": \"2023-12-31T23:59:59.000Z\",\n  \"estimatedHours\": 8.5,\n  \"tags\": [\"auth\", \"security\", \"api\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks"
+              ]
+            },
+            "description": "Create a new task."
+          }
+        },
+        {
+          "name": "Get Task by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Task retrieved successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('title');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            },
+            "description": "Retrieve a specific task by its ID."
+          }
+        },
+        {
+          "name": "Update Task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Task updated successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.have.property('updatedAt');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Implement user authentication (Updated)\",\n  \"status\": \"IN_PROGRESS\",\n  \"priority\": \"CRITICAL\",\n  \"actualHours\": 4.5,\n  \"tags\": [\"auth\", \"security\", \"api\", \"jwt\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            },
+            "description": "Update an existing task."
+          }
+        },
+        {
+          "name": "Get Task Comments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Task comments retrieved successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}/comments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}",
+                "comments"
+              ]
+            },
+            "description": "Retrieve all comments for a specific task."
+          }
+        },
+        {
+          "name": "Add Task Comment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Comment added successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.have.property('id');",
+                  "    pm.expect(responseJson.data).to.have.property('content');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Started working on this task. Making good progress with the JWT implementation!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}/comments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}",
+                "comments"
+              ]
+            },
+            "description": "Add a new comment to a task."
+          }
+        },
+        {
+          "name": "Assign Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assigneeId\": \"{{userId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}/assign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}",
+                "assign"
+              ]
+            },
+            "description": "Assign a task to a user."
+          }
+        },
+        {
+          "name": "Unassign Task",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}/unassign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}",
+                "unassign"
+              ]
+            },
+            "description": "Unassign a task from its current assignee."
+          }
+        },
+        {
+          "name": "Archive Task",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}/archive",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}",
+                "archive"
+              ]
+            },
+            "description": "Archive a task."
+          }
+        },
+        {
+          "name": "Get Task Dependencies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}/dependencies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}",
+                "dependencies"
+              ]
+            },
+            "description": "Get task dependencies."
+          }
+        },
+        {
+          "name": "Add Task Dependency",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dependsOnId\": \"dependency-task-id\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}/dependencies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}",
+                "dependencies"
+              ]
+            },
+            "description": "Add a task dependency."
+          }
+        },
+        {
+          "name": "Delete Task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Task deleted successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/tasks/{{taskId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "tasks",
+                "{{taskId}}"
+              ]
+            },
+            "description": "Delete a task permanently."
+          }
+        }
+      ],
+      "description": "Task management endpoints for creating, updating, and managing tasks."
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get User Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Notifications retrieved successfully', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "    pm.expect(responseJson.data).to.be.an('array');",
+                  "    pm.expect(responseJson.meta).to.have.property('total');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?isRead=false&page=1&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "isRead",
+                  "value": "false",
+                  "description": "Filter by read status"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Items per page"
+                }
+              ]
+            },
+            "description": "Retrieve all notifications for the authenticated user."
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Notification marked as read', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/notification-id/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "notification-id",
+                "read"
+              ]
+            },
+            "description": "Mark a specific notification as read."
+          }
+        },
+        {
+          "name": "Mark All Notifications as Read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('All notifications marked as read', function () {",
+                  "    const responseJson = pm.response.json();",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(responseJson.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/mark-all-read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "mark-all-read"
+              ]
+            },
+            "description": "Mark all user notifications as read."
+          }
+        }
+      ],
+      "description": "Notification management endpoints."
+    },
+    {
+      "name": "Test Workflows",
+      "item": [
+        {
+          "name": "Complete User Registration Flow",
+          "item": [
+            {
+              "name": "1. Register New User",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    const responseJson = pm.response.json();",
+                      "    pm.collectionVariables.set('accessToken', responseJson.data.accessToken);",
+                      "    pm.collectionVariables.set('refreshToken', responseJson.data.refreshToken);",
+                      "    pm.collectionVariables.set('userId', responseJson.data.user.id);",
+                      "    pm.test('User registered successfully', () => {",
+                      "        pm.expect(responseJson.success).to.be.true;",
+                      "    });",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\",\n  \"password\": \"testPassword123\",\n  \"confirmPassword\": \"testPassword123\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/auth/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "register"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "2. Update User Profile",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\",\n  \"bio\": \"Test user for API integration\",\n  \"timezone\": \"America/New_York\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/users/profile",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "users",
+                    "profile"
+                  ]
+                }
+              }
+            }
+          ],
+          "description": "Complete user registration and profile setup workflow."
+        },
+        {
+          "name": "Complete Project and Task Flow",
+          "item": [
+            {
+              "name": "1. Create Project",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    const responseJson = pm.response.json();",
+                      "    pm.collectionVariables.set('projectId', responseJson.data.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Test Project\",\n  \"description\": \"A test project for API workflow\",\n  \"startDate\": \"2023-01-01T00:00:00.000Z\",\n  \"endDate\": \"2023-12-31T23:59:59.000Z\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/projects",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "projects"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "2. Create Task",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "    const responseJson = pm.response.json();",
+                      "    pm.collectionVariables.set('taskId', responseJson.data.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Test Task\",\n  \"description\": \"A test task for API workflow\",\n  \"priority\": \"HIGH\",\n  \"projectId\": \"{{projectId}}\",\n  \"estimatedHours\": 5.0\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/tasks",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "tasks"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "3. Update Task Status",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"actualHours\": 2.5\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/tasks/{{taskId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "tasks",
+                    "{{taskId}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "4. Add Task Comment",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"content\": \"Started working on this task. Everything looks good so far!\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/tasks/{{taskId}}/comments",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "tasks",
+                    "{{taskId}}",
+                    "comments"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "5. Complete Task",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"DONE\",\n  \"actualHours\": 4.5\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/tasks/{{taskId}}",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "tasks",
+                    "{{taskId}}"
+                  ]
+                }
+              }
+            }
+          ],
+          "description": "Complete project creation and task management workflow."
+        }
+      ],
+      "description": "Pre-built workflows for testing common API usage patterns."
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-refresh token if needed",
+          "const accessToken = pm.collectionVariables.get('accessToken');",
+          "const refreshToken = pm.collectionVariables.get('refreshToken');",
+          "",
+          "if (accessToken) {",
+          "    try {",
+          "        const payload = JSON.parse(atob(accessToken.split('.')[1]));",
+          "        const currentTime = Math.floor(Date.now() / 1000);",
+          "        const bufferTime = 300; // 5 minutes buffer",
+          "        ",
+          "        if (payload.exp && (payload.exp - bufferTime) < currentTime && refreshToken) {",
+          "            console.log('Access token expiring soon, attempting refresh...');",
+          "            ",
+          "            const refreshRequest = {",
+          "                url: pm.collectionVariables.get('baseUrl') + '/auth/refresh',",
+          "                method: 'POST',",
+          "                header: {",
+          "                    'Content-Type': 'application/json'",
+          "                },",
+          "                body: {",
+          "                    mode: 'raw',",
+          "                    raw: JSON.stringify({ refreshToken: refreshToken })",
+          "                }",
+          "            };",
+          "            ",
+          "            pm.sendRequest(refreshRequest, (err, response) => {",
+          "                if (!err && response.json().success) {",
+          "                    const newAccessToken = response.json().data.accessToken;",
+          "                    pm.collectionVariables.set('accessToken', newAccessToken);",
+          "                    console.log('Token refreshed successfully');",
+          "                } else {",
+          "                    console.log('Token refresh failed, please login again');",
+          "                }",
+          "            });",
+          "        }",
+          "    } catch (e) {",
+          "        console.log('Error parsing access token:', e);",
+          "    }",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test for response time",
+          "pm.test('Response time is less than 5000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "// Global test for response format",
+          "if (pm.response.code !== 404) {",
+          "    pm.test('Response has success field', function () {",
+          "        const responseJson = pm.response.json();",
+          "        pm.expect(responseJson).to.have.property('success');",
+          "        pm.expect(responseJson).to.have.property('message');",
+          "    });",
+          "}",
+          "",
+          "// Handle common error responses",
+          "if (pm.response.code === 401) {",
+          "    pm.test('Authentication error handled', function () {",
+          "        const responseJson = pm.response.json();",
+          "        pm.expect(responseJson.success).to.be.false;",
+          "        console.log('Authentication failed. Please check your token.');",
+          "    });",
+          "}",
+          "",
+          "if (pm.response.code === 429) {",
+          "    pm.test('Rate limit error handled', function () {",
+          "        const responseJson = pm.response.json();",
+          "        pm.expect(responseJson.success).to.be.false;",
+          "        console.log('Rate limit exceeded. Please wait before making more requests.');",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ]
+}
