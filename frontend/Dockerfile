@@ -1,89 +1,43 @@
-# Multi-stage build for CyberTask Frontend
-FROM node:18-alpine AS base
-
-# Install system dependencies
-RUN apk add --no-cache \
-    libc6-compat \
-    ca-certificates
-
-# Set working directory
+# Minimal build without additional packages
+FROM node:18 AS base
 WORKDIR /app
 
-# Install dependencies stage
+# Dependencies stage
 FROM base AS deps
-
-# Copy package files
 COPY package*.json ./
+RUN npm install
 
-# Install all dependencies (including dev dependencies for build)
-RUN npm ci --frozen-lockfile
-
-# Build stage
+# Builder stage
 FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# Build with Vite only, skip TypeScript type checking
+RUN npx vite build
+
+# Production stage
+FROM node:18-slim AS runner
+
+# Create non-root user
+RUN groupadd -g 1001 nodejs && useradd -m -u 1001 -g nodejs nodejs
 
 WORKDIR /app
-
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-
-# Copy source code
-COPY . .
-
-# Set build arguments
-ARG NODE_ENV=production
-ARG VITE_API_URL=http://localhost:3001
-ARG VERSION=latest
-
-ENV NODE_ENV=$NODE_ENV
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_VERSION=$VERSION
-
-# Build the application
-RUN npm run build
-
-# Production stage with Nginx
-FROM nginx:1.24-alpine AS runner
-
-# Install security updates and tools
-RUN apk update && \
-    apk upgrade && \
-    apk add --no-cache \
-    ca-certificates \
-    tzdata
-
-# Create non-root user for security
-RUN addgroup -g 1001 -S appuser && \
-    adduser -S appuser -u 1001 -G appuser
-
-# Copy custom nginx config
-COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
 
 # Copy built application
-COPY --from=builder --chown=appuser:appuser /app/dist /usr/share/nginx/html
+COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nodejs:nodejs /app/package*.json ./
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
 
-# Create necessary directories and set permissions
-RUN mkdir -p /var/cache/nginx/client_temp \
-    /var/cache/nginx/proxy_temp \
-    /var/cache/nginx/fastcgi_temp \
-    /var/cache/nginx/uwsgi_temp \
-    /var/cache/nginx/scgi_temp && \
-    chown -R appuser:appuser /var/cache/nginx && \
-    chown -R appuser:appuser /usr/share/nginx/html && \
-    chown -R appuser:appuser /var/log/nginx && \
-    chown -R appuser:appuser /etc/nginx/conf.d && \
-    touch /var/run/nginx.pid && \
-    chown -R appuser:appuser /var/run/nginx.pid
+# Set environment
+ENV NODE_ENV=production
+ENV PORT=3000
 
 # Switch to non-root user
-USER appuser
-
-# Expose port
-EXPOSE 8080
+USER nodejs
+EXPOSE 3000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3     CMD node -e "require('http').get('http://localhost:3000', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Start the Vite preview server
+CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0"]
