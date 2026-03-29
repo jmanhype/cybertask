@@ -102,13 +102,44 @@ app.use('/api/tasks', authMiddleware, taskRoutes);
 app.use('/api/notifications', authMiddleware, notificationRoutes);
 
 // Socket.IO for real-time features
-io.use((socket, next) => {
-  const token = socket.handshake.auth.token;
-  if (!token) {
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+      return next(new Error('Authentication error: Token required'));
+    }
+
+    // Validate JWT token
+    const jwt = await import('jsonwebtoken');
+    const { jwtConfig } = await import('./config/environment');
+    const { prisma } = await import('./config/prisma');
+
+    try {
+      const decoded = jwt.verify(token, jwtConfig.secret, {
+        issuer: jwtConfig.issuer,
+        audience: jwtConfig.audience,
+      }) as any;
+
+      // Verify user exists and is active
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: { id: true, email: true, isActive: true },
+      });
+
+      if (!user || !user.isActive) {
+        return next(new Error('Authentication error: Invalid user'));
+      }
+
+      // Attach user to socket
+      socket.data.user = user;
+      next();
+    } catch (error) {
+      return next(new Error('Authentication error: Invalid token'));
+    }
+  } catch (error) {
+    logger.error('Socket.IO auth error:', error);
     return next(new Error('Authentication error'));
   }
-  // Add token validation here
-  next();
 });
 
 io.on('connection', (socket) => {

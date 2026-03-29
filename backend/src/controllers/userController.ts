@@ -1,12 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { PrismaClient } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { logger } from '../config/logger';
 import { config } from '../config/environment';
 import { AuthenticatedRequest } from '../types';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/prisma';
 
 /**
  * @desc    Get current user profile
